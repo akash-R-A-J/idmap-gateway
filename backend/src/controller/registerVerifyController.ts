@@ -19,7 +19,7 @@ const logger = pino({
  * Handles WebAuthn registration verification + Distributed Key Generation (DKG)
  *
  * Workflow:
- *   1. Verify user’s WebAuthn registration (challenge validation)
+ *   1. Verify user's WebAuthn registration (challenge validation)
  *   2. Create user record in PostgreSQL
  *   3. Trigger DKG across distributed servers using Redis pub/sub
  *   4. Wait for all DKG participants to return consistent shared public key

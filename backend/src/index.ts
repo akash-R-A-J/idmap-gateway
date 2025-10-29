@@ -1,13 +1,12 @@
-// src/index.ts
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
-import logger from "./config/logger.js";
 
 // Load environment variables
 dotenv.config();
 
 // Import middleware and controllers
+import logger from "./config/logger.js";
 import { userAuth } from "./auth/auth.js";
 import { registerOptionController } from "./controller/registerOptionController.js";
 import { registerVerifyController } from "./controller/registerVerifyController.js";
