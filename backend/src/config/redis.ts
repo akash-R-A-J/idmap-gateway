@@ -1,40 +1,53 @@
 import { createClient } from "redis";
+import logger from "../config/logger.js"; // assuming you have a pino logger setup
 
 /**
  * --------------------------------------------------------------------
  * Redis Client Manager
  * --------------------------------------------------------------------
- * This module ensures that only a single Redis client instance
- * is created and reused across the entire application.
+ * Purpose:
+ *   - Maintain a single shared Redis client instance across the app.
+ *   - Prevent multiple connections to Redis (which can waste resources).
  * 
- * The connection is established once and remains active while
- * the application is running. On shutdown, it will gracefully close.
+ * Features:
+ *   - Lazy initialization (connect only when first needed)
+ *   - Event listeners for connection monitoring
+ *   - Graceful shutdown on SIGINT (Ctrl+C / process termination)
+ * 
+ * Environment Variables:
+ *   - REDIS_URL: Redis connection string (e.g., redis://localhost:6379)
  * --------------------------------------------------------------------
  */
 
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 
+// Singleton Redis client instance (initialized lazily)
 let redisClient: ReturnType<typeof createClient> | null = null;
 
 /**
- * Returns a connected Redis client instance.
- * If not already connected, it initializes the connection.
+ * getRedisClient()
+ * --------------------------------------------------------------------
+ * Returns a connected Redis client.
+ * If not already initialized, creates a new one and connects it.
+ * 
+ * @returns Redis client instance
+ * --------------------------------------------------------------------
  */
 export const getRedisClient = (): ReturnType<typeof createClient> => {
   if (!redisClient) {
     redisClient = createClient({ url: REDIS_URL });
 
-    // Attach connection event listeners (optional but useful for monitoring)
+    // --- Event listeners for visibility and debugging ---
     redisClient.on("connect", () => {
-      console.log("Redis client connected");
+      logger.info(`Connected to Redis at ${REDIS_URL}`);
     });
 
     redisClient.on("error", (err) => {
-      console.error("Redis connection error:", err);
+      logger.error({ err }, "Redis connection error");
     });
 
     redisClient.on("end", () => {
-      console.log("Redis client disconnected");
+      logger.warn("Redis client disconnected");
     });
   }
 
@@ -42,12 +55,21 @@ export const getRedisClient = (): ReturnType<typeof createClient> => {
 };
 
 /**
- * Gracefully close Redis connection when the process exits.
+ * Graceful shutdown handler
+ * --------------------------------------------------------------------
+ * Closes the Redis connection when the Node.js process is terminated.
+ * Ensures no dangling connections remain.
+ * --------------------------------------------------------------------
  */
 process.on("SIGINT", async () => {
   if (redisClient) {
-    console.log("Closing Redis client connection...");
-    await redisClient.quit();
+    logger.info("Closing Redis client connection...");
+    try {
+      await redisClient.quit();
+      logger.info("Redis client closed successfully.");
+    } catch (err) {
+      logger.error({ err }, "Error closing Redis client");
+    }
   }
   process.exit(0);
 });

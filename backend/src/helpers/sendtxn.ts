@@ -64,7 +64,7 @@ export const sendTxnToServer = async (
           // Ignore irrelevant results
           if (data.id !== BACKEND_ID) return;
 
-          // ✅ Handle valid signature result
+          // Handle valid signature result
           if (data.result_type === "sign-result") {
             const currentCount = (signResults.get(userId) || 0) + 1;
             signResults.set(userId, currentCount);
@@ -87,7 +87,7 @@ export const sendTxnToServer = async (
             }
           }
 
-          // ❌ Handle signing error
+          // Handle signing error
           else if (data.result_type === "sign-error") {
             logger.error({ node: data.server_id, error: data.error }, "Node reported signing failure");
 
