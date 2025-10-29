@@ -1,15 +1,14 @@
 import { pool } from "../config/db.js";
 
 export const initKeyDB = async () => {
-  const client = await pool.connect();
   try {
-    await client.query("BEGIN");
+    await pool.query("BEGIN");
 
-    await client.query(`
+    await pool.query(`
           CREATE SCHEMA IF NOT EXISTS key_schema;
         `);
 
-    await client.query(`
+    await pool.query(`
           CREATE TABLE IF NOT EXISTS key_schema.keys (
             id SERIAL PRIMARY KEY,
             userId BIGINT NOT NULL,
@@ -19,11 +18,9 @@ export const initKeyDB = async () => {
           );
         `);
 
-    await client.query("COMMIT");
+    await pool.query("COMMIT");
   } catch (error) {
-    await client.query("ROLLBACK");
+    await pool.query("ROLLBACK");
     console.error("Error creating share table", error);
-  } finally {
-    client.release();
   }
 };

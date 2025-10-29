@@ -1,20 +1,16 @@
 import type { Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import {
-  generateAuthenticationOptions,
-  type AuthenticatorTransportFuture,
-} from "@simplewebauthn/server";
-import { getCredentialByUserId } from "../helpers/credentials.js";
 import { getUserByEmail } from "../helpers/users.js";
+import { generateChallenge } from "../helpers/webauthn.js";
 
-// temporary map for verification of user
-export const loginCredMap = new Map<
-  string,
-  PublicKeyCredentialRequestOptionsJSON
->();
-
+// returns webauthn challenge for users to sign
 export const loginOptionsController = async (req: Request, res: Response) => {
-  const { email } = req.body;
+  const { e } = req.body;
+  const email = e.toLowerCase();
+  
+  if (!email) {
+    return res.status(400).json({ message: "invalid credential" });
+  }
 
   try {
     const user = await getUserByEmail(email.toLowerCase());
@@ -23,24 +19,11 @@ export const loginOptionsController = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "invalid credentials" });
     }
 
-    const credentials = await getCredentialByUserId(userId);
-    if (!credentials || credentials.length === 0) {
-      console.log("credentials not found for user in loginOptionsCredential");
-      return res.status(404).json({ message: "invalid credentials" });
+    const authOptions = await generateChallenge(userId);
+    if(!authOptions){
+      throw Error("error generating webauthn challenege during login");
     }
-
-    const allowCredentials = credentials.map((cred) => ({
-      id: cred.id as Base64URLString,
-      transports: cred.transports as AuthenticatorTransportFuture[],
-    }));
-
-    // generate challenge for login
-    const authOptions = await generateAuthenticationOptions({
-      rpID: process.env.rpID as string,
-      allowCredentials: allowCredentials ?? undefined,
-    });
-
-    loginCredMap.set(userId, authOptions);
+    
     const token = jwt.sign({ userId }, process.env.JWT_SECRET as string, {
       expiresIn: "1h",
     });

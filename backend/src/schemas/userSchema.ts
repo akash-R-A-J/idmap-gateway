@@ -7,9 +7,7 @@ export const initUserDB = async () => {
     // TODO: alter this table, and remove username and password
     await pool.query(`CREATE TABLE IF NOT EXISTS user_schema.users (
         id BIGSERIAL PRIMARY KEY NOT NULL,
-        username TEXT NOT NULL,
         email TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,    
         created_at TIMESTAMPTZ DEFAULT NOW()
     );`);
   } catch (error) {

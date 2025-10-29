@@ -1,10 +1,4 @@
 import type { Request, Response } from "express";
-import { sendCredMap, sendInputMap } from "./sendOptionController.js";
-import {
-  getCredentialByIdAndUserId,
-  updateCounter,
-} from "../helpers/credentials.js";
-import { verifyAuthenticationResponse } from "@simplewebauthn/server";
 import {
   Connection,
   PublicKey,
@@ -15,63 +9,25 @@ import {
 import { getKeyByUserId } from "../helpers/key.js";
 import { sendTxnToServer } from "../helpers/sendtxn.js";
 import bs58 from "bs58";
+import { verifyChallenge } from "../helpers/webauthn.js";
+
+interface BodyInputType {
+  toAddress: String;
+  lamports: number;
+}
 
 export const sendVerifyController = async (req: Request, res: Response) => {
-  const userId = req.userId;
-  const { body } = req;
-
-  if (!userId) {
-    return res.status(403).json({ message: "invalid credentials" });
-  }
-
   try {
-    // Get the challenge for WebAuthn verification
-    const options = sendCredMap.get(userId);
-    if (!options) {
-      return res.status(404).json({ message: "invalid credentials" });
-    }
-    console.log("got options");
+    const userId = req.userId;
+    const { toAddress, lamports }: BodyInputType = req.body;
+    const { signed } = req.body;
 
-    const credential = await getCredentialByIdAndUserId({
-      id: body.id,
-      userId,
-    });
-
-    if (!credential) {
-      return res.status(404).json({ message: "credential not found" });
+    if (!userId) {
+      return res.status(403).json({ message: "invalid credentials" });
     }
 
-    console.log("got correct credentials");
-
-    // Verify authentication (WebAuthn)
-    const verification = await verifyAuthenticationResponse({
-      response: body,
-      expectedChallenge: options.challenge,
-      expectedOrigin: process.env.origin as string,
-      expectedRPID: process.env.rpID as string,
-      credential: {
-        id: credential.id,
-        publicKey: Uint8Array.from(credential.publickey),
-        counter: Number(credential.counter),
-        transports: credential.transports,
-      },
-    });
-
-    console.log("verification");
-
-    const { verified, authenticationInfo } = verification;
-    if (!verified) {
-      return res.status(400).json({ message: "verification failed" });
-    }
-
-    console.log("verified");
-    const { newCounter } = authenticationInfo;
-
-    // Clean up challenge and update counter
-    sendCredMap.delete(userId);
-    await updateCounter(credential.id, newCounter);
-
-    console.log("updated counter");
+    // --- verify webauthn challenge ---
+    const verified = verifyChallenge(userId, signed);
 
     // --- Create Solana Transaction ---
     const connection = new Connection(
@@ -79,21 +35,11 @@ export const sendVerifyController = async (req: Request, res: Response) => {
       "confirmed"
     );
 
-    const userInput = sendInputMap.get(userId);
-    if (!userInput) {
-      return res.status(403).json({ message: "invalid input" });
-    }
-
-    const { toAddress, lamports } = userInput;
     const key = await getKeyByUserId(userId);
     if (!key) {
       return res.status(404).json({ message: "key not found" });
     }
 
-    console.log("got userinput and key");
-
-    console.log("key.solanaAddress: ", key.solanaaddress);
-    console.log("toAddress: ", toAddress);
     const sessionId = key.sessionid;
     const fromPubkey = new PublicKey(key.solanaaddress);
     const toPubkey = new PublicKey(toAddress);
@@ -154,6 +100,7 @@ export const sendVerifyController = async (req: Request, res: Response) => {
       signature,
       txid,
       message: "Transaction successfully signed and broadcasted",
+      verified,
     });
   } catch (e) {
     console.error("sendVerifyController error:", e);

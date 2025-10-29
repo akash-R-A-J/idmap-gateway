@@ -1,36 +1,52 @@
 import type { Request, Response } from "express";
 import { verifyRegistrationResponse } from "@simplewebauthn/server";
 import { pool } from "../config/db.js";
-import { credentialMap } from "./createChallengeController.js";
+import { credentialMap } from "./registerOptionController.js";
 import { createClient } from "redis";
 import { randomUUID } from "crypto";
+import jwt from "jsonwebtoken";
+import { getRedisClient } from "../config/redis.js";
 
-export const verifyChallenge = async (req: Request, res: Response) => {
-  const userId = req.userId;
-  if (!userId) {
+  // TODO: add zod validation
+export const registerVerifyController = async (req: Request, res: Response) => {
+  const { e, signed } = req.body;
+  const email = e.toLowerCase();
+
+  if (!email || !signed) {
     return res.status(401).json({ message: "invalid credentials" });
   }
 
-  const redisClient = createClient({ url: "redis://localhost:6379" });
-
   try {
-    await redisClient.connect();
 
-    const options = credentialMap.get(userId);
+    const options = credentialMap.get(email);
     if (!options?.challenge) {
       return res.status(401).json({ message: "invalid credentials" });
     }
 
     const verification = await verifyRegistrationResponse({
-      response: req.body,
+      response: signed,
       expectedChallenge: options.challenge,
       expectedOrigin: process.env.origin as string,
       expectedRPID: process.env.rpID as string,
     });
 
+    let userId;
     const { verified, registrationInfo } = verification;
 
     if (verified && registrationInfo) {
+      // store user in the database -> TODO: alter user table
+      const { rows: users } = await pool.query(
+        `INSERT INTO user_schema.users (email) VALUES ($1) RETURNING id;`,
+        [email]
+      );
+
+      // only for debugging
+      console.log("users: ", users);
+      console.log("users[0]: ", users[0]);
+
+      userId = users[0].id; // check this out
+
+      // store credential in the database
       const { credential, credentialDeviceType, credentialBackedUp } =
         registrationInfo;
 
@@ -52,10 +68,14 @@ export const verifyChallenge = async (req: Request, res: Response) => {
       );
 
       console.log("✅ Saved credential:", rows[0]);
-      credentialMap.delete(userId);
+    } else {
+      return res.status(403).json({ message: "invalid credentials" });
     }
 
     // ✅ Step 2: Generate session
+    const redisClient = getRedisClient();
+    await redisClient.connect();
+    
     const sessionId = `session-${randomUUID()}`;
     const dkgPayload = {
       id: Date.now(),
@@ -69,7 +89,7 @@ export const verifyChallenge = async (req: Request, res: Response) => {
     await redisClient.publish("dkg-start", JSON.stringify(dkgPayload));
 
     // ✅ Step 4: Collect results
-    const EXPECTED_PARTICIPANTS = 2;
+    const EXPECTED_PARTICIPANTS = parseInt(process.env.EXPECTED_PARTICIPANTS || "2");
     const pubkeyPromise = new Promise<string>((resolve, reject) => {
       const sub = redisClient.duplicate();
 
@@ -128,23 +148,27 @@ export const verifyChallenge = async (req: Request, res: Response) => {
     const sharedPubkey = await pubkeyPromise;
     console.log("✅ DKG complete. Shared public key:", sharedPubkey);
 
-    // ✅ Step 5: Save session info
+    // ✅ Step 5: Save session and group public key info
     await pool.query(
       `INSERT INTO key_schema.keys (sessionId, userId, solanaAddress, created_at)
        VALUES ($1, $2, $3, NOW());`,
       [sessionId, userId, sharedPubkey]
     );
 
+    // create jwt token
+    const token = jwt.sign({ userId }, process.env.JWT_SECRET as string, {
+      expiresIn: "1h",
+    });
+
     return res.status(200).json({
-      message: "DKG successfully started and completed",
+      message: "Registered Successfully",
       verified,
       sessionId,
       publicKey: sharedPubkey,
+      token,
     });
   } catch (error) {
     console.error("❌ Error during challenge verification or DKG:", error);
     return res.status(500).json({ message: "server error", error });
-  } finally {
-    if (redisClient.isOpen) await redisClient.quit();
   }
 };

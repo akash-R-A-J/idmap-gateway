@@ -2,15 +2,9 @@ import { startRegistration } from "@simplewebauthn/browser";
 import axios from "axios";
 import React, { useState } from "react";
 
-// interface ResponseType {
-//   message: string;
-//   userId: string;
-// }
 
 export const Register = () => {
-  const [name, setName] = useState<string>("");
   const [email, setEmail] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
 
   // create credential for webauthn during registration
   // also create partial private key during registration
@@ -20,9 +14,7 @@ export const Register = () => {
       const response = await axios.post(
         "http://localhost:5000/api/v1/register",
         {
-          username: name,
           email,
-          password,
         },
         {
           headers: {
@@ -32,7 +24,6 @@ export const Register = () => {
       );
 
       console.log("response", response.data);
-      alert(response.data.message);
 
       // register with webauthn [get the challenge]
       const resOtps = await axios.get(
@@ -63,11 +54,11 @@ export const Register = () => {
 
       const result = verifyResp.data;
       console.log("registration verified", result);
+      
+      alert(response.data.message);
 
       // clear the input field
-      setName("");
       setEmail("");
-      setPassword("");
     } catch (error) {
       console.error("server error", error);
     }
@@ -75,13 +66,7 @@ export const Register = () => {
 
   return (
     <div className="bg-gray-700 w-100 flex flex-col items-center gap-4 p-2 m-2 py-10 rounded-md">
-      <InputField type="text" placeholder="Username" handleChange={setName} />
       <InputField type="email" placeholder="Email" handleChange={setEmail} />
-      <InputField
-        type="password"
-        placeholder="Password"
-        handleChange={setPassword}
-      />
 
       <button
         onClick={handleClick}

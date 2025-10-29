@@ -1,4 +1,3 @@
-import { cose } from "@simplewebauthn/server/helpers";
 import { pool } from "../config/db.js";
 
 export const getCredentialByUserId = async (userId: string) => {
