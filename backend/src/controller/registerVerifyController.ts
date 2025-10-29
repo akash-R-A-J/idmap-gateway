@@ -2,80 +2,90 @@ import type { Request, Response } from "express";
 import { verifyRegistrationResponse } from "@simplewebauthn/server";
 import { pool } from "../config/db.js";
 import { credentialMap } from "./registerOptionController.js";
-import { createClient } from "redis";
 import { randomUUID } from "crypto";
 import jwt from "jsonwebtoken";
 import { getRedisClient } from "../config/redis.js";
+import logger from "../config/logger.js";
 
-  // TODO: add zod validation
+/**
+ * Controller: registerVerifyController
+ * ------------------------------------
+ * Handles WebAuthn registration verification and initializes a DKG session.
+ * 1. Verifies signed registration response
+ * 2. Stores user and credential data in PostgreSQL
+ * 3. Starts a DKG session via Redis Pub/Sub
+ * 4. Aggregates DKG results and saves shared public key
+ */
 export const registerVerifyController = async (req: Request, res: Response) => {
   const { e, signed } = req.body;
-  const email = e.toLowerCase();
 
-  if (!email || !signed) {
-    return res.status(401).json({ message: "invalid credentials" });
+  if (!e || !signed) {
+    logger.warn("Registration verification attempt with missing fields");
+    return res.status(401).json({ message: "Invalid credentials" });
   }
 
-  try {
+  const email = e.toLowerCase();
 
+  try {
     const options = credentialMap.get(email);
     if (!options?.challenge) {
-      return res.status(401).json({ message: "invalid credentials" });
+      logger.warn(`Missing WebAuthn challenge for email: ${email}`);
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    // Verify WebAuthn challenge response
     const verification = await verifyRegistrationResponse({
       response: signed,
       expectedChallenge: options.challenge,
-      expectedOrigin: process.env.origin as string,
-      expectedRPID: process.env.rpID as string,
+      expectedOrigin: process.env.ORIGIN as string,
+      expectedRPID: process.env.RP_ID as string,
     });
 
-    let userId;
     const { verified, registrationInfo } = verification;
 
-    if (verified && registrationInfo) {
-      // store user in the database -> TODO: alter user table
-      const { rows: users } = await pool.query(
-        `INSERT INTO user_schema.users (email) VALUES ($1) RETURNING id;`,
-        [email]
-      );
-
-      // only for debugging
-      console.log("users: ", users);
-      console.log("users[0]: ", users[0]);
-
-      userId = users[0].id; // check this out
-
-      // store credential in the database
-      const { credential, credentialDeviceType, credentialBackedUp } =
-        registrationInfo;
-
-      const { rows } = await pool.query(
-        `INSERT INTO credential_schema.credentials 
-         (id, publicKey, counter, userId, webauthnUserId, deviceType, backedUp, transports)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING *;`,
-        [
-          credential.id,
-          Buffer.from(credential.publicKey),
-          credential.counter,
-          userId,
-          options.user.id,
-          credentialDeviceType,
-          credentialBackedUp,
-          credential.transports,
-        ]
-      );
-
-      console.log("✅ Saved credential:", rows[0]);
-    } else {
-      return res.status(403).json({ message: "invalid credentials" });
+    if (!verified || !registrationInfo) {
+      logger.warn(`Invalid registration verification for user: ${email}`);
+      return res.status(403).json({ message: "Invalid credentials" });
     }
 
-    // ✅ Step 2: Generate session
+    logger.info(`WebAuthn registration verified for ${email}`);
+
+    // Step 1: Store user in the database
+    const { rows: users } = await pool.query(
+      `INSERT INTO user_schema.users (email) VALUES ($1) RETURNING id;`,
+      [email]
+    );
+
+    const userId = users[0]?.id;
+    if (!userId) throw new Error("Failed to create user record");
+
+    // Step 2: Store credential details
+    const { credential, credentialDeviceType, credentialBackedUp } =
+      registrationInfo;
+
+    const { rows } = await pool.query(
+      `INSERT INTO credential_schema.credentials 
+         (id, publicKey, counter, userId, webauthnUserId, deviceType, backedUp, transports)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *;`,
+      [
+        credential.id,
+        Buffer.from(credential.publicKey),
+        credential.counter,
+        userId,
+        options.user?.id ?? null,
+        credentialDeviceType,
+        credentialBackedUp,
+        credential.transports,
+      ]
+    );
+
+    logger.info({ credentialId: rows[0].id }, `Credential saved for ${email}`);
+
+    // Step 3: Start DKG session
     const redisClient = getRedisClient();
     await redisClient.connect();
-    
+
     const sessionId = `session-${randomUUID()}`;
     const dkgPayload = {
       id: Date.now(),
@@ -83,92 +93,94 @@ export const registerVerifyController = async (req: Request, res: Response) => {
       session: sessionId,
     };
 
-    console.log("🚀 Starting DKG for session:", sessionId);
-
-    // ✅ Step 3: Publish DKG start
+    logger.info(`Starting DKG for session: ${sessionId}`);
     await redisClient.publish("dkg-start", JSON.stringify(dkgPayload));
 
-    // ✅ Step 4: Collect results
-    const EXPECTED_PARTICIPANTS = parseInt(process.env.EXPECTED_PARTICIPANTS || "2");
+    // Step 4: Listen for DKG results
+    const EXPECTED_PARTICIPANTS = parseInt(
+      process.env.EXPECTED_PARTICIPANTS || "2",
+      10
+    );
+    const sub = redisClient.duplicate();
+    const received: Record<number, string> = {};
+
     const pubkeyPromise = new Promise<string>((resolve, reject) => {
-      const sub = redisClient.duplicate();
+      sub
+        .connect()
+        .then(async () => {
+          await sub.subscribe("dkg-result", async (message) => {
+            try {
+              const parsed = JSON.parse(message);
 
-      sub.on("error", (err) => {
-        console.error("Redis subscriber error:", err);
-        reject(err);
-      });
+              if (
+                parsed.result_type === "dkg-result" &&
+                parsed.id === dkgPayload.id
+              ) {
+                received[parsed.server_id] = parsed.data;
+                logger.debug(
+                  `Received DKG pubkey from node ${parsed.server_id}`
+                );
 
-      sub.connect().then(async () => {
-        const received: Record<number, string> = {};
+                if (Object.keys(received).length === EXPECTED_PARTICIPANTS) {
+                  await sub.unsubscribe("dkg-result");
+                  await sub.quit();
 
-        await sub.subscribe("dkg-result", async (message) => {
-          try {
-            const parsed = JSON.parse(message);
+                  const uniqueKeys = new Set(Object.values(received));
+                  if (uniqueKeys.size > 1) {
+                    return reject(new Error("Mismatched DKG public keys"));
+                  }
 
-            if (
-              parsed.result_type === "dkg-result" &&
-              parsed.id === dkgPayload.id
-            ) {
-              console.log(
-                `🧩 Received public key from server ${parsed.server_id}: ${parsed.data}`
-              );
-
-              received[parsed.server_id] = parsed.data;
-
-              if (Object.keys(received).length === EXPECTED_PARTICIPANTS) {
-                console.log("✅ All DKG results received.");
-
-                await sub.unsubscribe("dkg-result");
-                await sub.quit(); // ✅ safer than disconnect()
-
-                // Validate that all pubkeys match
-                const uniqueKeys = new Set(Object.values(received));
-                if (uniqueKeys.size > 1) {
-                  return reject(new Error("Mismatched DKG public keys"));
-                }
-
-                const finalPubkey = Object.values(received)[0];
-                if (finalPubkey) {
-                  resolve(finalPubkey);
-                } else {
-                  reject(new Error("No public key received from participants"));
+                  const finalPubkey = Object.values(received)[0];
+                  if (finalPubkey) {
+                    resolve(finalPubkey);
+                  } else {
+                    reject(
+                      new Error("No public key received from participants")
+                    );
+                  }
                 }
               }
+            } catch (err) {
+              await sub.unsubscribe("dkg-result");
+              await sub.quit();
+              reject(err);
             }
-          } catch (err) {
-            console.error("Error parsing dkg-result:", err);
-            await sub.unsubscribe("dkg-result");
-            await sub.quit();
-            reject(err);
-          }
-        });
-      });
+          });
+        })
+        .catch((err) => reject(err));
     });
 
     const sharedPubkey = await pubkeyPromise;
-    console.log("✅ DKG complete. Shared public key:", sharedPubkey);
+    logger.info(`DKG complete. Shared public key generated for ${email}`);
 
-    // ✅ Step 5: Save session and group public key info
+    // Step 5: Save group key
     await pool.query(
       `INSERT INTO key_schema.keys (sessionId, userId, solanaAddress, created_at)
        VALUES ($1, $2, $3, NOW());`,
       [sessionId, userId, sharedPubkey]
     );
 
-    // create jwt token
+    // Step 6: Issue session JWT
     const token = jwt.sign({ userId }, process.env.JWT_SECRET as string, {
       expiresIn: "1h",
     });
 
+    logger.info(
+      `User ${email} registered successfully with session ${sessionId}`
+    );
+
     return res.status(200).json({
-      message: "Registered Successfully",
+      message: "Registered successfully",
       verified,
       sessionId,
       publicKey: sharedPubkey,
       token,
     });
   } catch (error) {
-    console.error("❌ Error during challenge verification or DKG:", error);
-    return res.status(500).json({ message: "server error", error });
+    logger.error(
+      error instanceof Error ? error : new Error(String(error)),
+      "Error during registration verification or DKG"
+    );
+    return res.status(500).json({ message: "Server error" });
   }
 };

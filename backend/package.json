@@ -25,8 +25,13 @@
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.16.3",
+    "pino": "^10.1.0",
+    "pino-pretty": "^13.1.2",
     "postgres": "^3.4.7",
     "redis": "^5.9.0",
     "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/pino": "^7.0.4"
   }
 }
