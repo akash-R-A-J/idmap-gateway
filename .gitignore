@@ -1,4 +1,15 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Environment files
 .env
-2020-852.pdf
-dist
+*.env
+
+# Build output
+dist/
+build/
+.next/
+out/
+
+# Logs
+*.log
