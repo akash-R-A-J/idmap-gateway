@@ -1,0 +1,41 @@
+import jwt from "jsonwebtoken";
+import { generateAuthenticationOptions, } from "@simplewebauthn/server";
+import { getCredentialByUserId } from "../helpers/credentials.js";
+import { getUserByEmail } from "../helpers/users.js";
+// temporary map for verification of user
+export const loginCredMap = new Map();
+export const loginOptionsController = async (req, res) => {
+    const { email } = req.body;
+    try {
+        const user = await getUserByEmail(email.toLowerCase());
+        const userId = user.id;
+        if (!userId) {
+            return res.status(404).json({ message: "invalid credentials" });
+        }
+        const credentials = await getCredentialByUserId(userId);
+        if (!credentials || credentials.length === 0) {
+            console.log("credentials not found for user in loginOptionsCredential");
+            return res.status(404).json({ message: "invalid credentials" });
+        }
+        const allowCredentials = credentials.map((cred) => ({
+            id: cred.id,
+            transports: cred.transports,
+        }));
+        // generate challenge for login
+        const authOptions = await generateAuthenticationOptions({
+            rpID: process.env.rpID,
+            allowCredentials: allowCredentials ?? undefined,
+        });
+        loginCredMap.set(userId, authOptions);
+        const token = jwt.sign({ userId }, process.env.JWT_SECRET, {
+            expiresIn: "1h",
+        });
+        console.log("sending challenge to the user for verification during login", authOptions);
+        res.status(200).json({ options: authOptions, token });
+    }
+    catch (error) {
+        console.error("error in login-options controller", error);
+        res.status(500).json({ message: "server error", error });
+    }
+};
+//# sourceMappingURL=loginOptionsContoller.js.map
