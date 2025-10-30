@@ -1,10 +1,12 @@
 import { Pool } from "pg";
 import logger from "../config/logger.js";
+import "dotenv/config";
 
 // Check for required env variable
 if (!process.env.PG_URL) {
   logger.warn("PG_URL not found in environment. Using fallback local connection string.");
-}
+}else{
+  console.log(process.env.PG_URL);}
 
 export const pool = new Pool({
   connectionString:

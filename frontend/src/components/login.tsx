@@ -21,7 +21,7 @@ export const Login = () => {
       setLoading(true);
 
       const response = await axios.post(
-        "http://localhost:5000/api/v1/login-options",
+        `${import.meta.env.VITE_BE_URL}/api/v1/login-options`,
         { e: email },
         { headers: { "Content-Type": "application/json" } }
       );
@@ -36,7 +36,7 @@ export const Login = () => {
       const asseResp = await startAuthentication(options);
 
       const verificationResp = await axios.post(
-        "http://localhost:5000/api/v1/login-verify",
+        `${import.meta.env.VITE_BE_URL}/api/v1/login-verify`,
         {signed: asseResp},
         {
           headers: {

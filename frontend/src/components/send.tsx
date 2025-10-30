@@ -38,6 +38,8 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
   const [loading, setLoading] = useState(false);
   const [airdropLoading, setAirdropLoading] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [copied, setCopied] = useState(false);
+  const [hovering, setHovering] = useState(false);
 
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -48,7 +50,7 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
     async function fetchTxs() {
       try {
         const res = await axios.get(
-          "http://localhost:5000/api/v1/transactions",
+          `${import.meta.env.VITE_BE_URL}/api/v1/transactions`,
           {
             headers: { token: localStorage.getItem("token") },
           }
@@ -65,7 +67,7 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
     try {
       setLoading(true);
       const response = await axios.post(
-        "http://localhost:5000/api/v1/send-options",
+        `${import.meta.env.VITE_BE_URL}/api/v1/send-options`,
         {},
         {
           headers: {
@@ -83,7 +85,7 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
 
       const authResponse = await startAuthentication(options);
       const verifyResponse = await axios.post(
-        "http://localhost:5000/api/v1/send-verify",
+        `${import.meta.env.VITE_BE_URL}/api/v1/send-verify`,
         { toAddress, lamports: lamports * 1_000_000_000, signed: authResponse },
         {
           headers: {
@@ -108,7 +110,7 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
         txid,
       };
 
-      setTransactions((prev) => ([...prev, tx]));
+      setTransactions((prev) => [...prev, tx]);
 
       alert(message || "Transaction sent successfully!");
     } catch (err) {
@@ -116,6 +118,8 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
       alert("Transaction failed.");
     } finally {
       setLoading(false);
+      setLamports(0);
+      setToAddress("");
     }
   }
 
@@ -123,6 +127,7 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
   async function handleAirdrop() {
     const address = publicKey;
     const lamports = LAMPORTS_PER_SOL; // 1 SOL
+    setAirdropLoading(true);
 
     const rpcEndpoints = [
       "https://api.devnet.solana.com",
@@ -162,6 +167,8 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
         } catch (e) {
           console.error(`Airdrop attempt ${attempt} via ${url} failed:`, e);
           await new Promise((r) => setTimeout(r, 200));
+        } finally {
+          setAirdropLoading(false);
         }
       }
 
@@ -181,11 +188,12 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
       console.error(`Failed to fetch balance for ${address}:`, e);
     }
 
-    if (!success) {
+    if (success) {
+      alert("Airdrop successful");
+    } else {
+      alert("Airdrop limit reached");
       console.error(`Airdrop failed on all RPC endpoints for ${address}`);
     }
-
-    return success;
   }
 
   return (
@@ -229,6 +237,34 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
         animate={{ scale: [1, 1.3, 1] }}
         transition={{ repeat: Infinity, duration: 15, ease: "easeInOut" }}
       />
+
+      {/* 🔑 Display User Public Key */}
+      {publicKey && (
+        <div className="w-full flex flex-col items-center mt-8">
+          <p className="text-gray-400 text-sm mb-2">Your Solana Address</p>
+          <div className="flex items-center space-x-2 bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-gray-100 max-w-[90%] break-all">
+            <span className="text-sm truncate">{publicKey}</span>
+
+            {/* Copy Button with Feedback */}
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(publicKey);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 5000);
+              }}
+              onMouseEnter={() => setHovering(true)}
+              onMouseLeave={() => setHovering(false)}
+              className={`ml-3 px-2 py-1 text-xs rounded-md transition-all duration-200 ${
+                copied
+                  ? "bg-green-600 hover:bg-green-700 text-white"
+                  : "bg-indigo-600 hover:bg-indigo-700 text-white"
+              } ${hovering ? "cursor-pointer" : ""}`}
+            >
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ⚙️ Layout */}
       <div className="flex flex-1 flex-col lg:flex-row items-center justify-between px-10 py-20 space-y-12 lg:space-y-0 lg:space-x-12">

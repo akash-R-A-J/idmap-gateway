@@ -21,7 +21,7 @@ export const Register = ({
       setIsLoading(true);
 
       const response = await axios.post(
-        "http://localhost:5000/api/v1/register-options",
+        `${import.meta.env.VITE_BE_URL}/api/v1/register-options`,
         { e: email },
         { headers: { "Content-Type": "application/json" } }
       );
@@ -34,7 +34,7 @@ export const Register = ({
       const attResp = await startRegistration(options);
 
       const verifyResp = await axios.post(
-        "http://localhost:5000/api/v1/register-verify",
+        `${import.meta.env.VITE_BE_URL}/api/v1/register-verify`,
         { e: email, signed: attResp },
         {
           headers: {

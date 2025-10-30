@@ -6,6 +6,7 @@ import { credentialMap } from "./registerOptionController.js";
 import { randomUUID } from "crypto";
 import jwt from "jsonwebtoken";
 import { getRedisClient } from "../config/redis.js";
+import { createClient } from "redis";
 
 // Create logger instance
 const logger = pino({
@@ -132,7 +133,7 @@ export const registerVerifyController = async (req: Request, res: Response) => {
     // });
 
     const sharedPubkey = await new Promise<string>(async (resolve, reject) => {
-      const sub = redisClient.duplicate();
+      const sub = createClient({url: process.env.REDIS_URL as string});
       const received: Record<number, string> = {};
 
       try {
