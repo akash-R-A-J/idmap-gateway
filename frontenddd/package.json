@@ -11,7 +11,9 @@
     "test:watch": "jest --watch"
   },
   "dependencies": {
+    "@simplewebauthn/browser": "^13.2.2",
     "@solana/web3.js": "^1.87.6",
+    "axios": "^1.13.1",
     "framer-motion": "^12.23.24",
     "next": "^14.1.0",
     "next-auth": "^4.24.5",

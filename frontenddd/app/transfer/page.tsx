@@ -12,7 +12,7 @@ export default async function TransferPage() {
     redirect('/signin')
   }
 
-  // Sample transaction history data
+  // Sample transaction history data [will be replaced by transaction history]
   const sampleTransactions = [
     {
       id: 1,
