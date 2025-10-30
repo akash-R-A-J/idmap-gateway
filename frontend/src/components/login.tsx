@@ -2,7 +2,7 @@ import { startAuthentication } from "@simplewebauthn/browser";
 import axios from "axios";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Mail, Loader2, KeyRound, ShieldCheck, Cpu, Network, Zap, Database } from "lucide-react";
