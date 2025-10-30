@@ -1,5 +1,6 @@
 import pino from "pino";
 import { getRedisClient } from "../config/redis.js";
+import { createClient } from "redis";
 
 const logger = pino({ name: "sendTxnToServer" });
 
@@ -47,11 +48,12 @@ export const sendTxnToServer = async (
   session: string
 ): Promise<string | null> => {
   const pub = getRedisClient();
-  const sub = getRedisClient();
+  const sub = createClient({
+    url: process.env.REDIS_URL || "redis://localhost:6379",
+  });
+  await sub.connect();
 
   try {
-    await pub.connect();
-    await sub.connect();
     logger.info("Connected to Redis");
 
     return new Promise(async (resolve, reject) => {
@@ -69,11 +71,14 @@ export const sendTxnToServer = async (
             const currentCount = (signResults.get(userId) || 0) + 1;
             signResults.set(userId, currentCount);
 
-            logger.info({
-              node: data.server_id,
-              count: `${currentCount}/${TOTAL_NODES}`,
-              partialSig: data.data,
-            }, "Received partial signature");
+            logger.info(
+              {
+                node: data.server_id,
+                count: `${currentCount}/${TOTAL_NODES}`,
+                partialSig: data.data,
+              },
+              "Received partial signature"
+            );
 
             if (currentCount === TOTAL_NODES) {
               logger.info({ userId, session }, "All signatures received");
@@ -89,7 +94,10 @@ export const sendTxnToServer = async (
 
           // Handle signing error
           else if (data.result_type === "sign-error") {
-            logger.error({ node: data.server_id, error: data.error }, "Node reported signing failure");
+            logger.error(
+              { node: data.server_id, error: data.error },
+              "Node reported signing failure"
+            );
 
             signResults.delete(userId);
             await sub.unsubscribe("sign-result");

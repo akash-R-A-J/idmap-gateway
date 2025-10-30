@@ -49,10 +49,16 @@ export const getRedisClient = (): ReturnType<typeof createClient> => {
     redisClient.on("end", () => {
       logger.warn("Redis client disconnected");
     });
+
+    // 👇 Auto-connect once
+    redisClient.connect().catch((err) => {
+      logger.error({ err }, "Redis connection error during initial connect");
+    });
   }
 
   return redisClient;
 };
+
 
 /**
  * Graceful shutdown handler

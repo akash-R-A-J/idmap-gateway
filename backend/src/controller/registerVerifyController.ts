@@ -57,6 +57,142 @@ export const registerVerifyController = async (req: Request, res: Response) => {
       return res.status(403).json({ message: "invalid credentials" });
     }
 
+    // --- Step 4: Initialize Redis + start DKG ---
+    const redisClient = getRedisClient();
+
+    const sessionId = `session-${randomUUID()}`;
+    const dkgPayload = {
+      id: Date.now(), // node backend id
+      action: "startdkg",
+      session: sessionId,
+    };
+
+    logger.info({ sessionId }, "Publishing DKG start event");
+    await redisClient.publish("dkg-start", JSON.stringify(dkgPayload));
+
+    const EXPECTED_PARTICIPANTS = parseInt(
+      process.env.EXPECTED_PARTICIPANTS || "2"
+    );
+
+    // --- Step 5: Collect DKG results ---
+    // const sharedPubkey = await new Promise<string>((resolve, reject) => {
+    //   const sub = redisClient.duplicate();
+    //   const received: Record<number, string> = {}; // Stores server_id → public_key mappings
+
+    //   sub.on("error", (err) => {
+    //     logger.error({ err }, "Redis subscriber error");
+    //     reject(err);
+    //   });
+
+    //   sub.connect().then(async () => {
+    //     await sub.subscribe("dkg-result", async (message) => {
+    //       try {
+    //         const parsed = JSON.parse(message);
+
+    //         if (
+    //           parsed.result_type === "dkg-result" &&
+    //           parsed.id === dkgPayload.id
+    //         ) {
+    //           logger.debug(
+    //             {
+    //               server_id: parsed.server_id,
+    //               pubkey: parsed.data,
+    //             },
+    //             "Received DKG result"
+    //           );
+
+    //           received[parsed.server_id] = parsed.data;
+
+    //           if (Object.keys(received).length === EXPECTED_PARTICIPANTS) {
+    //             await sub.unsubscribe("dkg-result");
+    //             await sub.quit();
+
+    //             const uniqueKeys = new Set(Object.values(received));
+    //             if (uniqueKeys.size > 1) {
+    //               logger.error("Mismatched DKG public keys across servers");
+    //               return reject(new Error("Mismatched DKG public keys"));
+    //             }
+
+    //             const finalPubkey = Object.values(received)[0];
+    //             if (finalPubkey) {
+    //               resolve(finalPubkey);
+    //             } else {
+    //               reject(new Error("No public key received from participants"));
+    //             }
+    //           }
+    //         }
+    //       } catch (err) {
+    //         logger.error({ err }, "Error parsing DKG result message");
+    //         await sub.unsubscribe("dkg-result");
+    //         await sub.quit();
+    //         reject(err);
+    //       }
+    //     });
+    //   });
+    // });
+
+    const sharedPubkey = await new Promise<string>(async (resolve, reject) => {
+      const sub = redisClient.duplicate();
+      const received: Record<number, string> = {};
+
+      try {
+        await sub.connect();
+
+        await sub.subscribe("dkg-result", async (message) => {
+          try {
+            const parsed = JSON.parse(message);
+
+            if (
+              parsed.result_type === "dkg-result" &&
+              parsed.id === dkgPayload.id
+            ) {
+              logger.debug(
+                { server_id: parsed.server_id, pubkey: parsed.data },
+                "Received DKG result"
+              );
+
+              received[parsed.server_id] = parsed.data;
+
+              if (Object.keys(received).length === EXPECTED_PARTICIPANTS) {
+                await sub.unsubscribe("dkg-result");
+
+                const uniqueKeys = new Set(Object.values(received));
+                if (uniqueKeys.size > 1) {
+                  logger.error("Mismatched DKG public keys across servers");
+                  throw new Error("Mismatched DKG public keys");
+                }
+
+                const finalPubkey = Object.values(received)[0];
+                if (!finalPubkey) {
+                  throw new Error("No public key received from participants");
+                }
+
+                resolve(finalPubkey);
+              }
+            }
+          } catch (err) {
+            reject(err);
+          }
+        });
+      } catch (err) {
+        logger.error({ err }, "Redis subscriber connection error");
+        reject(err);
+      } finally {
+        // Always clean up, even if error occurs
+        sub.on("end", () => logger.debug("Redis subscriber closed"));
+        setTimeout(async () => {
+          if (sub.isOpen) {
+            await sub.quit();
+          }
+        }, 5000); // close after short delay
+      }
+    });
+
+    logger.info(
+      { sharedPubkey },
+      "DKG complete, received final group public key"
+    );
+
     // --- Step 2: Create user record ---
     const { rows: users } = await pool.query(
       `INSERT INTO user_schema.users (email) VALUES ($1) RETURNING id;`,
@@ -85,86 +221,6 @@ export const registerVerifyController = async (req: Request, res: Response) => {
 
     logger.info({ email }, "User and credential saved successfully");
 
-    // --- Step 4: Initialize Redis + start DKG ---
-    const redisClient = getRedisClient();
-    await redisClient.connect();
-
-    const sessionId = `session-${randomUUID()}`;
-    const dkgPayload = {
-      id: Date.now(), // node backend id
-      action: "startdkg",
-      session: sessionId,
-    };
-
-    logger.info({ sessionId }, "Publishing DKG start event");
-    await redisClient.publish("dkg-start", JSON.stringify(dkgPayload));
-
-    const EXPECTED_PARTICIPANTS = parseInt(
-      process.env.EXPECTED_PARTICIPANTS || "2"
-    );
-
-    // --- Step 5: Collect DKG results ---
-    const sharedPubkey = await new Promise<string>((resolve, reject) => {
-      const sub = redisClient.duplicate();
-      const received: Record<number, string> = {}; // Stores server_id → public_key mappings
-
-      sub.on("error", (err) => {
-        logger.error({ err }, "Redis subscriber error");
-        reject(err);
-      });
-
-      sub.connect().then(async () => {
-        await sub.subscribe("dkg-result", async (message) => {
-          try {
-            const parsed = JSON.parse(message);
-
-            if (
-              parsed.result_type === "dkg-result" &&
-              parsed.id === dkgPayload.id
-            ) {
-              logger.debug(
-                {
-                  server_id: parsed.server_id,
-                  pubkey: parsed.data,
-                },
-                "Received DKG result"
-              );
-
-              received[parsed.server_id] = parsed.data;
-
-              if (Object.keys(received).length === EXPECTED_PARTICIPANTS) {
-                await sub.unsubscribe("dkg-result");
-                await sub.quit();
-
-                const uniqueKeys = new Set(Object.values(received));
-                if (uniqueKeys.size > 1) {
-                  logger.error("Mismatched DKG public keys across servers");
-                  return reject(new Error("Mismatched DKG public keys"));
-                }
-
-                const finalPubkey = Object.values(received)[0];
-                if (finalPubkey) {
-                  resolve(finalPubkey);
-                } else {
-                  reject(new Error("No public key received from participants"));
-                }
-              }
-            }
-          } catch (err) {
-            logger.error({ err }, "Error parsing DKG result message");
-            await sub.unsubscribe("dkg-result");
-            await sub.quit();
-            reject(err);
-          }
-        });
-      });
-    });
-
-    logger.info(
-      { sharedPubkey },
-      "DKG complete, received final group public key"
-    );
-
     // --- Step 6: Save key info ---
     await pool.query(
       `INSERT INTO key_schema.keys (sessionId, userId, solanaAddress, created_at)
@@ -181,7 +237,6 @@ export const registerVerifyController = async (req: Request, res: Response) => {
     return res.status(200).json({
       message: "Registered Successfully",
       verified,
-      sessionId,
       publicKey: sharedPubkey,
       token,
     });

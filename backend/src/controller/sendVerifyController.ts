@@ -25,6 +25,8 @@ interface BodyInputType {
  * Verifies a user's WebAuthn challenge and executes a Solana transfer transaction
  * signed via DKG nodes, then broadcasts it to the Solana network.
  */
+
+// TODO: update redis-client here too  (connection: quit and connect)
 export const sendVerifyController = async (req: Request, res: Response) => {
   try {
     const userId = req.userId;
@@ -48,7 +50,8 @@ export const sendVerifyController = async (req: Request, res: Response) => {
     }
 
     // --- Step 2: Setup Solana connection ---
-    const rpcUrl = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
+    const rpcUrl =
+      process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
     const connection = new Connection(rpcUrl, "confirmed");
 
     logger.info({ rpcUrl }, "Connected to Solana RPC");
@@ -86,12 +89,18 @@ export const sendVerifyController = async (req: Request, res: Response) => {
     const serialized = Buffer.from(transaction.message.serialize());
     const base64Message = serialized.toString("base64");
 
-    logger.info({ sessionId, userId }, "Serialized transaction message prepared");
+    logger.info(
+      { sessionId, userId },
+      "Serialized transaction message prepared"
+    );
 
     // --- Step 6: Send transaction message to distributed key servers (Rust DKG nodes) ---
     const signature = await sendTxnToServer(userId, base64Message, sessionId);
     if (!signature) {
-      logger.error({ userId, sessionId }, "No signature received from DKG nodes");
+      logger.error(
+        { userId, sessionId },
+        "No signature received from DKG nodes"
+      );
       return res.status(400).json({ message: "signing failed" });
     }
 
@@ -116,7 +125,10 @@ export const sendVerifyController = async (req: Request, res: Response) => {
       message: "Transaction successfully signed and broadcasted",
     });
   } catch (error) {
-    logger.error({ error }, "Error during transaction verification or broadcast");
+    logger.error(
+      { error },
+      "Error during transaction verification or broadcast"
+    );
     return res.status(500).json({ message: "internal server error" });
   }
 };

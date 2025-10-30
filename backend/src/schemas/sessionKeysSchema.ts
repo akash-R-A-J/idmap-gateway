@@ -29,7 +29,7 @@ export const initKeyDB = async () => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS key_schema.keys (
         id SERIAL PRIMARY KEY,
-        userId BIGINT NOT NULL,
+        userId BIGINT NOT NULL REFERENCES user_schema.users(id) ON DELETE CASCADE,
         sessionId TEXT NOT NULL,
         solanaAddress TEXT NOT NULL,
         created_at TIMESTAMPTZ DEFAULT NOW()

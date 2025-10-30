@@ -17,6 +17,8 @@ import { loginVerifyController } from "./controller/loginVerifyController.js";
 import { sendOptionController } from "./controller/sendOptionController.js";
 import { sendVerifyController } from "./controller/sendVerifyController.js";
 import { initKeyDB } from "./schemas/sessionKeysSchema.js";
+import { getRedisClient } from "./config/redis.js";
+
 
 // ---------------------------------------------------------------------
 // Express App Setup
@@ -31,7 +33,7 @@ app.use(cors());
 // ---------------------------------------------------------------------
 
 // WebAuthn Registration
-app.get("/api/v1/register-options", registerOptionController);
+app.post("/api/v1/register-options", registerOptionController);
 app.post("/api/v1/register-verify", registerVerifyController); // TODO: decide if userAuth is required
 
 // WebAuthn Login
@@ -42,12 +44,15 @@ app.post("/api/v1/login-verify", userAuth, loginVerifyController);
 app.post("/api/v1/send-options", userAuth, sendOptionController);
 app.post("/api/v1/send-verify", userAuth, sendVerifyController);
 
+// TODO: add one endpoint to return all the user transactions, transaction table needs to be created
+
+
 // ---------------------------------------------------------------------
 // Server Initialization
 // ---------------------------------------------------------------------
+getRedisClient();
 
 const PORT = process.env.PORT || 5000;
-
 app.listen(PORT, async () => {
   try {
     logger.info("Initializing databases...");
