@@ -422,7 +422,7 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
                 <span className="truncate max-w-[200px] text-gray-300">
                   {tx.toAddress}
                 </span>
-                <span className="text-indigo-400">{tx.amount} lamports</span>
+                <span className="text-indigo-400">{tx.amount} SOL</span>
                 <span
                   className={`${
                     tx.status ? "text-green-400" : "text-red-400"
