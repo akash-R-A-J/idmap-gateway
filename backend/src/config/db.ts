@@ -5,12 +5,11 @@ import "dotenv/config";
 // Check for required env variable
 if (!process.env.PG_URL) {
   logger.warn("PG_URL not found in environment. Using fallback local connection string.");
-}else{
-  console.log(process.env.PG_URL);}
+}
 
 export const pool = new Pool({
   connectionString:
-    process.env.PG_URL || "postgresql://postgres:password@localhost:5433/idmap_db",
+    process.env.PG_URL as string || "postgresql://postgres:password@localhost:5433/idmap_db",
 });
 
 pool

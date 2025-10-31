@@ -76,62 +76,6 @@ export const registerVerifyController = async (req: Request, res: Response) => {
     );
 
     // --- Step 5: Collect DKG results ---
-    // const sharedPubkey = await new Promise<string>((resolve, reject) => {
-    //   const sub = redisClient.duplicate();
-    //   const received: Record<number, string> = {}; // Stores server_id → public_key mappings
-
-    //   sub.on("error", (err) => {
-    //     logger.error({ err }, "Redis subscriber error");
-    //     reject(err);
-    //   });
-
-    //   sub.connect().then(async () => {
-    //     await sub.subscribe("dkg-result", async (message) => {
-    //       try {
-    //         const parsed = JSON.parse(message);
-
-    //         if (
-    //           parsed.result_type === "dkg-result" &&
-    //           parsed.id === dkgPayload.id
-    //         ) {
-    //           logger.debug(
-    //             {
-    //               server_id: parsed.server_id,
-    //               pubkey: parsed.data,
-    //             },
-    //             "Received DKG result"
-    //           );
-
-    //           received[parsed.server_id] = parsed.data;
-
-    //           if (Object.keys(received).length === EXPECTED_PARTICIPANTS) {
-    //             await sub.unsubscribe("dkg-result");
-    //             await sub.quit();
-
-    //             const uniqueKeys = new Set(Object.values(received));
-    //             if (uniqueKeys.size > 1) {
-    //               logger.error("Mismatched DKG public keys across servers");
-    //               return reject(new Error("Mismatched DKG public keys"));
-    //             }
-
-    //             const finalPubkey = Object.values(received)[0];
-    //             if (finalPubkey) {
-    //               resolve(finalPubkey);
-    //             } else {
-    //               reject(new Error("No public key received from participants"));
-    //             }
-    //           }
-    //         }
-    //       } catch (err) {
-    //         logger.error({ err }, "Error parsing DKG result message");
-    //         await sub.unsubscribe("dkg-result");
-    //         await sub.quit();
-    //         reject(err);
-    //       }
-    //     });
-    //   });
-    // });
-
     const sharedPubkey = await new Promise<string>(async (resolve, reject) => {
       const sub = createClient({url: process.env.REDIS_URL as string});
       const received: Record<number, string> = {};
