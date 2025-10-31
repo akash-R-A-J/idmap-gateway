@@ -16,58 +16,68 @@ export const Register = ({
   const [email, setEmail] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
 
+  // register button
   async function handleClick() {
     try {
       setIsLoading(true);
 
+      console.log("requesting for challenge");
       const response = await axios.post(
         `${import.meta.env.VITE_BE_URL}/api/v1/register-options`,
         { e: email },
         { headers: { "Content-Type": "application/json" } }
       );
 
-      const { options } = response.data;
+      console.log("got the challenge");
+
+      const { options, message: challengeMessage } = response.data;
+
+      // ⚡ Always alert backend message (even if failed)
+      if (challengeMessage) alert(challengeMessage);
+
       if (!options) {
-        alert(response.data.message);
+        return; // stop here if no registration options
       }
 
       const attResp = await startRegistration(options);
 
+      console.log("sending the signed challenge for verification");
       const verifyResp = await axios.post(
         `${import.meta.env.VITE_BE_URL}/api/v1/register-verify`,
         { e: email, signed: attResp },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
+        { headers: { "Content-Type": "application/json" } }
       );
 
+      console.log("verified");
       const { message, verified, publicKey, token } = verifyResp.data;
 
-      console.log(verifyResp);
+      // ⚡ Always alert backend message (success or failure)
+      alert(message || "Something went wrong.");
 
-      if (!token || !verified || !publicKey) {
-        alert(message);
-        return;
+      if (!verified || !token || !publicKey) {
+        return; // stop here if registration failed
       }
 
       setPublicKey(publicKey);
       localStorage.setItem("token", token);
 
-      alert(message);
       setEmail("");
       navigate("/transfer");
-    } catch (error) {
+    } catch (error: any) {
       console.error("server error", error);
-      alert("Registration failed. Please try again.");
+
+      // Alert the backend message if present
+      const backendMessage =
+        error?.response?.data?.message ||
+        "Registration failed. Please try again.";
+      alert(backendMessage);
     } finally {
       setIsLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-[#050505] via-[#0a0a0a] to-[#101010] text-gray-200 overflow-x-hidden">
+    <div className="min-h-screen w-full bg-gradient-to-br from-[#050505] via-[#0a0a0a] to-[#101010] bg-gradient-to-br from-indigo-950 via-slate-900 to-black text-gray-200 overflow-x-hidden">
       {/* glowing background effects */}
       <div className="absolute inset-0 -z-10">
         <div className="absolute top-20 left-20 w-[500px] h-[500px] bg-gradient-to-tr from-indigo-600 via-purple-600 to-blue-500 opacity-20 blur-[200px]" />
@@ -157,6 +167,17 @@ export const Register = ({
               )}
             </Button>
           </div>
+
+          {/* 🔗 Already registered? */}
+          <p className="text-gray-400 text-sm text-center mt-6 cursor-pointer">
+            Already have an account?{" "}
+            <button
+              onClick={() => navigate("/signin")}
+              className="text-indigo-400 hover:underline font-medium"
+            >
+              Sign in here
+            </button>
+          </p>
 
           <p className="text-gray-500 text-xs text-center mt-4">
             🔒 Your registration is end-to-end secure using MPC & WebAuthn.
