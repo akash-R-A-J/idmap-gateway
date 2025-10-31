@@ -242,10 +242,9 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
       {publicKey && (
         <div className="w-full flex flex-col items-center mt-8">
           <p className="text-gray-400 text-sm mb-2">Your Solana Address</p>
-          <div className="flex items-center space-x-2 bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-gray-100 max-w-[90%] break-all">
-            <span className="text-sm truncate">{publicKey}</span>
 
-            {/* Copy Button with Feedback */}
+          <div className="flex items-center space-x-2 bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-gray-100 max-w-[90%] break-all select-text">
+            <span className="text-sm break-all">{publicKey}</span>
             <button
               onClick={() => {
                 navigator.clipboard.writeText(publicKey);
