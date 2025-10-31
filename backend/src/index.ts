@@ -27,9 +27,9 @@ const app = express();
 app.use(express.json());
 app.use(
   cors({
-    origin: ["https://www.id-map.shop"], // or "*" if no credentials
+    origin: ["https://www.id-map.shop", "http://localhost:5173"], // or "*" if no credentials
     methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "token"],
   })
 );
 
