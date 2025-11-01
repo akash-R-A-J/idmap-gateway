@@ -148,7 +148,7 @@ export const registerVerifyController = async (req: Request, res: Response) => {
           logger.warn({ err }, "Error during Redis cleanup after timeout:");
         }
         reject(new Error("Timeout waiting for DKG results"));
-      }, 5000);
+      }, 15000);
 
       try {
         await sub.connect();
@@ -156,6 +156,7 @@ export const registerVerifyController = async (req: Request, res: Response) => {
         await sub.subscribe("dkg-result", async (message) => {
           try {
             const parsed = JSON.parse(message);
+            logger.info({id: parsed.id, server_id: parsed.server_id, pubkey: parsed.data}, "received payload from the rust srvers");
 
             if (
               parsed.result_type === "dkg-result" &&
@@ -169,7 +170,7 @@ export const registerVerifyController = async (req: Request, res: Response) => {
               received[parsed.server_id] = parsed.data;
 
               if (Object.keys(received).length === EXPECTED_PARTICIPANTS) {
-                clearTimeout(timeout); // ✅ stop timeout once all responses received
+                clearTimeout(timeout); //  stop timeout once all responses received
                 await sub.unsubscribe("dkg-result");
 
                 const uniqueKeys = new Set(Object.values(received));
