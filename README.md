@@ -1,8 +1,9 @@
-<div align="center">
+<div align="left">
 
 # 🔐 idmap-gateway
 
 ### Passwordless Authentication & Transaction Signing for Solana
+IdMap is a decentralized identity management protocol that bridges Web2 authentication and Web3 key infrastructure using WebAuthn and Distributed Key Generation (DKG). It generates and manages key shares across two independent Rust servers, ensuring that private keys are never fully reconstructed in one place — enabling secure, user-friendly, and trustless onboarding for users and dApps.
 
 *Powered by WebAuthn and Distributed Key Generation (DKG)*
 
@@ -375,8 +376,9 @@ Make sure you have the following installed:
 <details open>
 <summary><b>Click to expand/collapse</b></summary>
 
-#### 1️⃣ Navigate to backend directory
+#### 1️⃣ Clone this repo and Navigate to backend directory
 ```bash
+git clone https://github.com/akash-R-A-J/idmap-gateway.git
 cd backend
 ```
 
@@ -412,7 +414,7 @@ TOTAL_NODES=2
 REDIS_ACTION=sign
 ```
 
-> **⚠️ Security Note:** Change `JWT_SECRET` to a strong random value in production!
+> **⚠️ Security Note:** Configure PG_URL and REDIS_URL according to your connection string!
 
 #### 4️⃣ Start the development server
 ```bash
@@ -434,6 +436,7 @@ npm run dev
 
 #### 1️⃣ Navigate to frontend directory
 ```bash
+cd ..
 cd frontend
 ```
 
@@ -607,7 +610,7 @@ This system requires **external DKG nodes** to be running and connected to Redis
 
 ---
 
-<div align="center">
+<div align="left">
 
 ### 🎯 Quick Start Checklist
 
