@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { toast } from "sonner";
 import { startAuthentication } from "@simplewebauthn/browser";
 import { motion, useMotionTemplate, useMotionValue } from "framer-motion";
 import {
@@ -33,36 +35,20 @@ interface Transaction {
 }
 
 export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
+  const navigate = useNavigate();
   const [toAddress, setToAddress] = useState("");
-  const [lamports, setLamports] = useState(0); // NOTE: this is actually in sol not in lamports
+  const [lamports, setLamports] = useState(0);
   const [loading, setLoading] = useState(false);
   const [airdropLoading, setAirdropLoading] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [copied, setCopied] = useState(false);
-  // const [hovering, setHovering] = useState(false);
 
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const rotateX = useMotionTemplate`${y}deg`;
   const rotateY = useMotionTemplate`${x}deg`;
 
-  // useEffect(() => {
-  //   async function fetchTxs() {
-  //     try {
-  //       const res = await axios.get(
-  //         `${import.meta.env.VITE_BE_URL}/api/v1/transactions`,
-  //         {
-  //           headers: { token: localStorage.getItem("token") },
-  //         }
-  //       );
-  //       setTransactions(res.data.transactions || []);
-  //     } catch (err) {
-  //       console.error("Failed to fetch transactions", err);
-  //     }
-  //   }
-  //   fetchTxs();
-  // }, []);
-
+  // ⚙️ Send Transaction
   async function handleSend() {
     try {
       setLoading(true);
@@ -79,15 +65,18 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
 
       const { options } = response.data;
       if (!options) {
-        alert(response.data.message);
+        toast.error(response.data.message || "Failed to fetch send options");
         return;
       }
 
       const authResponse = await startAuthentication(options);
       const verifyResponse = await axios.post(
         `${import.meta.env.VITE_BE_URL}/api/v1/send-verify`,
-        // 1000000000
-        { toAddress, lamports: lamports * 1_000_000_000, signed: authResponse },
+        {
+          toAddress,
+          lamports: lamports * 1_000_000_000,
+          signed: authResponse,
+        },
         {
           headers: {
             "Content-Type": "application/json",
@@ -99,7 +88,7 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
       const { success, verified, signature, txid, message } =
         verifyResponse.data;
       if (!verified) {
-        alert(message);
+        toast.error(message || "Transaction verification failed.");
         return;
       }
 
@@ -112,11 +101,10 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
       };
 
       setTransactions((prev) => [...prev, tx]);
-
-      alert(message || "Transaction sent successfully!");
+      toast.success(message || "Transaction sent successfully!");
     } catch (err) {
       console.error(err);
-      alert("Transaction failed.");
+      toast.error("Transaction failed. Please try again.");
     } finally {
       setLoading(false);
       setLamports(0);
@@ -124,10 +112,10 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
     }
   }
 
-  /// 🚀 Helper: Airdrops `lamports` to the given Solana address (Devnet)
+  // 💧 Airdrop 1 SOL (Devnet)
   async function handleAirdrop() {
     const address = publicKey;
-    const lamports = LAMPORTS_PER_SOL; // 1 SOL
+    const lamports = LAMPORTS_PER_SOL;
     setAirdropLoading(true);
 
     const rpcEndpoints = [
@@ -141,10 +129,9 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
     const pubkey = new PublicKey(address);
     let success = false;
 
-    for (const url of rpcEndpoints) {
-      const connection = new Connection(url, "confirmed");
-
-      for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      for (const url of rpcEndpoints) {
+        const connection = new Connection(url, "confirmed");
         try {
           const sig = await connection.requestAirdrop(pubkey, lamports);
           const latestBlockhash = await connection.getLatestBlockhash();
@@ -190,16 +177,23 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
     }
 
     if (success) {
-      alert("Airdrop successful");
+      toast.success("Airdrop successful!");
     } else {
-      alert("Airdrop limit reached");
+      toast.error("Airdrop limit reached or failed on all endpoints.");
       console.error(`Airdrop failed on all RPC endpoints for ${address}`);
     }
   }
 
+  // 🚪 Logout
+  function handleLogout() {
+    localStorage.removeItem("token");
+    toast.info("Logged out successfully.");
+    navigate("/signin");
+  }
+
   return (
     <div className="relative min-h-screen bg-[#030014] text-gray-100 overflow-hidden flex flex-col">
-      {/* Curved Animated Background */}
+      {/* Background and Blobs */}
       <svg
         className="absolute inset-0 w-full h-full opacity-20"
         viewBox="0 0 1000 1000"
@@ -239,59 +233,9 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
         transition={{ repeat: Infinity, duration: 15, ease: "easeInOut" }}
       />
 
-      {/* 🔑 Display User Public Key */}
-      {publicKey && (
-        <div className="w-full flex flex-col items-center mt-8">
-          <p className="text-gray-400 text-sm mb-2">Your Solana Address</p>
-
-          <div className="flex items-center bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-gray-100 max-w-[90%] break-all">
-            <span className="text-sm break-all">{publicKey}</span>
-            <button
-              onClick={() => {
-                const copyText = async () => {
-                  try {
-                    if (navigator.clipboard && window.isSecureContext) {
-                      // Preferred (HTTPS or localhost)
-                      console.log("displaying public key");
-                      await navigator.clipboard.writeText(publicKey);
-                    } else {
-                      // ⚙️ Fallback for HTTP (non-secure)
-                      const textArea = document.createElement("textarea");
-                      textArea.value = publicKey;
-                      textArea.style.position = "fixed"; // Prevent scrolling
-                      textArea.style.left = "-9999px";
-                      document.body.appendChild(textArea);
-                      textArea.focus();
-                      textArea.select();
-                      document.execCommand("copy");
-                      document.body.removeChild(textArea);
-                    }
-
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 5000);
-                  } catch (err) {
-                    console.error("Copy failed:", err);
-                  }
-                };
-
-                copyText();
-              }}
-              className={`ml-3 px-3 py-1 text-xs font-medium rounded-md transition-all duration-200 ${
-                copied
-                  ? "bg-green-600 hover:bg-green-700 text-white"
-                  : "bg-indigo-600 hover:bg-indigo-700 text-white"
-              } cursor-pointer`}
-              title={copied ? "Copied!" : "Copy to clipboard"}
-            >
-              {copied ? "Copied!" : "Copy"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ⚙️ Layout */}
+      {/* Layout */}
       <div className="flex flex-1 flex-col lg:flex-row items-center justify-between px-10 py-20 space-y-12 lg:space-y-0 lg:space-x-12">
-        {/* 🧭 Left Sidebar */}
+        {/* Sidebar */}
         <div className="flex flex-col space-y-6 pl-5 mb-10 w-full lg:w-1/4">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -329,7 +273,7 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
           </motion.div>
         </div>
 
-        {/* 💳 Center Transaction Card */}
+        {/* Main Card */}
         <motion.div
           style={{ rotateX, rotateY }}
           onMouseMove={(e) => {
@@ -346,33 +290,88 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
           className="w-full lg:w-[420px] transition-transform duration-300"
         >
           <Card className="bg-white/10 backdrop-blur-2xl border border-white/10 shadow-[0_0_60px_rgba(0,0,0,0.6)]">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-white">
-                <Wallet className="w-5 h-5 text-indigo-400" /> Send Transaction
-              </CardTitle>
-              <CardDescription className="text-gray-400">
-                Secure Solana transfer using IDMAP authentication
-              </CardDescription>
+            <CardHeader className="relative">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-white">
+                    <Wallet className="w-5 h-5 text-indigo-400" /> Send
+                    Transaction
+                  </CardTitle>
+                  <CardDescription className="text-gray-400">
+                    Secure Solana transfer using IDMAP authentication
+                  </CardDescription>
+                </div>
+
+                {/* Logout */}
+                <Button
+                  onClick={handleLogout}
+                  variant="outline"
+                  className="bg-white/10 hover:bg-white/20 border border-white/20 text-gray-200 hover:text-white px-3 py-1.5 rounded-lg text-xs transition-all duration-200 flex items-center gap-1"
+                >
+                  <KeyRound className="w-4 h-4 text-indigo-400" />
+                  Logout
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4">
+
+            <CardContent className="space-y-2">
+              {publicKey && (
+                <>
+                  <p className="text-gray-400 text-sm mb-2">
+                    Your Solana Address
+                  </p>
+                  <div className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-gray-300 text-sm flex items-center justify-between mb-10 mt-0">
+                    <span className="truncate max-w-[260px] text-xs sm:text-sm">
+                      {publicKey}
+                    </span>
+                    <button
+                      onClick={async () => {
+                        try {
+                          if (
+                            typeof window !== "undefined" &&
+                            navigator.clipboard
+                          ) {
+                            await navigator.clipboard.writeText(publicKey);
+                            setCopied(true);
+                            toast.success("Address copied to clipboard!");
+                            setTimeout(() => setCopied(false), 3000);
+                          }
+                        } catch (err) {
+                          console.error("Copy failed:", err);
+                          toast.error("Failed to copy address.");
+                        }
+                      }}
+                      className={`ml-3 px-2 py-1 text-xs font-medium rounded-md transition-all duration-200 ${
+                        copied
+                          ? "font-semibold bg-purple-400 text-white"
+                          : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                      } cursor-pointer`}
+                      title={copied ? "Copied!" : "Copy to clipboard"}
+                    >
+                      {copied ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
+                </>
+              )}
+
               <Input
                 placeholder="Recipient Solana Address"
                 value={toAddress}
                 onChange={(e) => setToAddress(e.target.value)}
-                className="bg-white/10 border-white/20 text-gray-100"
+                className="bg-white/10 border-white/20 text-gray-100 mb-3"
               />
               <Input
                 type="number"
-                placeholder="Amount (lamports)"
+                placeholder="Amount (SOL)"
                 value={lamports}
                 onChange={(e) => setLamports(Number(e.target.value))}
-                className="bg-white/10 border-white/20 text-gray-100"
+                className="bg-white/10 border-white/20 text-gray-100 mb-3"
               />
 
               <Button
                 onClick={handleSend}
                 disabled={loading || !toAddress || lamports <= 0}
-                className="w-full bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white shadow-[0_0_20px_rgba(79,70,229,0.4)]"
+                className="mb-10 w-full bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white shadow-[0_0_20px_rgba(79,70,229,0.4)]"
               >
                 {loading ? (
                   <>
@@ -407,7 +406,7 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
           </Card>
         </motion.div>
 
-        {/* 🧾 Right Side - Info */}
+        {/* About Section */}
         <div className="w-full lg:w-1/4 space-y-4 text-gray-300">
           <h2 className="text-3xl font-semibold text-purple-400">
             About IDMAP
@@ -420,7 +419,7 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
         </div>
       </div>
 
-      {/* 🧾 History */}
+      {/* History */}
       <motion.div
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}

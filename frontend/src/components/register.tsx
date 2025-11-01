@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2, Fingerprint, Shield, Cpu, Globe2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 export const Register = ({
   setPublicKey,
@@ -33,7 +34,7 @@ export const Register = ({
       const { options, message: challengeMessage } = response.data;
 
       // ⚡ Always alert backend message (even if failed)
-      if (challengeMessage) alert(challengeMessage);
+      if (challengeMessage) toast.info(challengeMessage);
 
       if (!options) {
         return; // stop here if no registration options
@@ -52,7 +53,7 @@ export const Register = ({
       const { message, verified, publicKey, token } = verifyResp.data;
 
       // ⚡ Always alert backend message (success or failure)
-      alert(message || "Something went wrong.");
+      toast.success(message || "Something went wrong.");
 
       if (!verified || !token || !publicKey) {
         return; // stop here if registration failed
@@ -70,7 +71,7 @@ export const Register = ({
       const backendMessage =
         error?.response?.data?.message ||
         "Registration failed. Please try again.";
-      alert(backendMessage);
+      toast.error(backendMessage);
     } finally {
       setIsLoading(false);
     }
