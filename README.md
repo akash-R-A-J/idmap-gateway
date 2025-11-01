@@ -7,6 +7,8 @@ IdMap is a decentralized identity management protocol that bridges Web2 authenti
 
 *Powered by WebAuthn and Distributed Key Generation (DKG)*
 
+
+
 ---
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -30,6 +32,17 @@ This system enables users to create Solana wallets and sign transactions using *
 - ✅ Biometric transaction signing
 - ✅ Threshold signature scheme across multiple nodes
 - ✅ Zero private key exposure to servers
+
+---
+
+## 🌐 Resources & Links
+
+Here are all the key resources related to **IdMap** and its components:
+
+- 🔗 **IdMap Core Repository:** [github.com/akash-R-A-J/idmap-core](https://github.com/akash-R-A-J/idmap-core)
+- 📘 **IdMap Gateway – Detailed Documentation:** [deepwiki.com/akash-R-A-J/idmap-gateway](https://deepwiki.com/akash-R-A-J/idmap-gateway)
+- 📗 **IdMap Core – Detailed Documentation:** [deepwiki.com/akash-R-A-J/idmap-core](https://deepwiki.com/akash-R-A-J/idmap-core)
+- 🚀 **Live Website:** [id-map.shop](https://www.id-map.shop/)
 
 ---
 
