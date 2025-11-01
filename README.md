@@ -639,6 +639,16 @@ This system requires **external DKG nodes** to be running and connected to Redis
 
 ---
 
+## Future Roadmap / Upcoming Features
+
+- **Client-side WASM & IndexedDB**: Execute part of the DKG in-browser and store encrypted key shares client-side to enhance transparency and trust.  
+- **Rust-SGX Enclave**: Securely persist server-side key shares within Intel SGX enclaves for stronger protection and decentralization.  
+- **Mobile App Integration**: Enable biometric WebAuthn and local encrypted key storage for a seamless mobile identity experience.  
+- **Security & TLS Layer**: Implement TLS, encryption, and request signing across all inter-service communications.  
+- **Key Recovery Protocol**: Develop a decentralized recovery mechanism using threshold cryptography and multi-party consent.
+
+---
+
 ### 📄 License
 
 This project is part of an open-source initiative for passwordless Web3 authentication.
