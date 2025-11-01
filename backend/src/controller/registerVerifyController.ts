@@ -59,7 +59,7 @@ export const registerVerifyController = async (req: Request, res: Response) => {
     }
 
     // --- Step 4: Initialize Redis + start DKG ---
-    const redisClient = getRedisClient();
+    const redisClient = await getRedisClient();
 
     const sessionId = `session-${randomUUID()}`;
     const dkgPayload = {
@@ -76,9 +76,79 @@ export const registerVerifyController = async (req: Request, res: Response) => {
     );
 
     // --- Step 5: Collect DKG results ---
+    // const sharedPubkey = await new Promise<string>(async (resolve, reject) => {
+    //   const sub = createClient({url: process.env.REDIS_URL as string});
+    //   const received: Record<number, string> = {};
+
+    //   try {
+    //     await sub.connect();
+
+    //     await sub.subscribe("dkg-result", async (message) => {
+    //       try {
+    //         const parsed = JSON.parse(message);
+
+    //         if (
+    //           parsed.result_type === "dkg-result" &&
+    //           parsed.id === dkgPayload.id
+    //         ) {
+    //           logger.debug(
+    //             { server_id: parsed.server_id, pubkey: parsed.data },
+    //             "Received DKG result"
+    //           );
+
+    //           received[parsed.server_id] = parsed.data;
+
+    //           if (Object.keys(received).length === EXPECTED_PARTICIPANTS) {
+    //             await sub.unsubscribe("dkg-result");
+
+    //             const uniqueKeys = new Set(Object.values(received));
+    //             if (uniqueKeys.size > 1) {
+    //               logger.error("Mismatched DKG public keys across servers");
+    //               throw new Error("Mismatched DKG public keys");
+    //             }
+
+    //             const finalPubkey = Object.values(received)[0];
+    //             if (!finalPubkey) {
+    //               throw new Error("No public key received from participants");
+    //             }
+
+    //             resolve(finalPubkey);
+    //           }
+    //         }
+    //       } catch (err) {
+    //         reject(err);
+    //       }
+    //     });
+    //   } catch (err) {
+    //     logger.error({ err }, "Redis subscriber connection error");
+    //     reject(err);
+    //   } finally {
+    //     // Always clean up, even if error occurs
+    //     sub.on("end", () => logger.debug("Redis subscriber closed"));
+    //     setTimeout(async () => {
+    //       if (sub.isOpen) {
+    //         await sub.quit();
+    //       }
+    //     }, 3000); // close after short delay
+    //   }
+    // });
+
+    // --- Step 5: Collect DKG results ---
     const sharedPubkey = await new Promise<string>(async (resolve, reject) => {
-      const sub = createClient({url: process.env.REDIS_URL as string});
+      const sub = createClient({ url: process.env.REDIS_URL as string });
       const received: Record<number, string> = {};
+
+      // ⏰ Timeout after 5 seconds
+      const timeout = setTimeout(async () => {
+        logger.error("Timeout: No DKG result received within 5 seconds");
+        try {
+          await sub.unsubscribe("dkg-result");
+          await sub.quit();
+        } catch (err) {
+          logger.warn({ err }, "Error during Redis cleanup after timeout:");
+        }
+        reject(new Error("Timeout waiting for DKG results"));
+      }, 5000);
 
       try {
         await sub.connect();
@@ -99,6 +169,7 @@ export const registerVerifyController = async (req: Request, res: Response) => {
               received[parsed.server_id] = parsed.data;
 
               if (Object.keys(received).length === EXPECTED_PARTICIPANTS) {
+                clearTimeout(timeout); // ✅ stop timeout once all responses received
                 await sub.unsubscribe("dkg-result");
 
                 const uniqueKeys = new Set(Object.values(received));
@@ -116,20 +187,21 @@ export const registerVerifyController = async (req: Request, res: Response) => {
               }
             }
           } catch (err) {
+            clearTimeout(timeout);
             reject(err);
           }
         });
       } catch (err) {
+        clearTimeout(timeout);
         logger.error({ err }, "Redis subscriber connection error");
         reject(err);
       } finally {
-        // Always clean up, even if error occurs
         sub.on("end", () => logger.debug("Redis subscriber closed"));
         setTimeout(async () => {
           if (sub.isOpen) {
             await sub.quit();
           }
-        }, 5000); // close after short delay
+        }, 3000);
       }
     });
 

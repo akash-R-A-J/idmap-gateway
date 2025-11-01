@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { verifyChallenge } from "../helpers/webauthn.js";
 import logger from "../config/logger.js";
+import { pool } from "../config/db.js";
 
 /**
  * Controller: loginVerifyController
@@ -29,8 +30,16 @@ export const loginVerifyController = async (req: Request, res: Response) => {
       return res.status(403).json({ message: "Invalid credentials" });
     }
 
+    // return user metadata (like user publicKey)
+    const {rows} = await pool.query(
+      `SELECT solanaaddress FROM key_schema.keys WHERE userid = $1`,
+      [userId]
+    );
+    
+    const publicKey = rows[0].solanaaddress;
+
     logger.info(`User ${userId} successfully logged in`);
-    res.status(200).json({ verified, message: "Login successful" });
+    res.status(200).json({ verified, message: "Login successful", publicKey });
   } catch (error) {
     logger.error(
       error instanceof Error ? error : new Error(String(error)),

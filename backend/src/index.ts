@@ -25,13 +25,7 @@ import { getRedisClient } from "./config/redis.js";
 const app = express();
 
 app.use(express.json());
-app.use(
-  cors({
-    origin: ["https://www.id-map.shop", "http://localhost:5173"], // or "*" if no credentials
-    methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type", "Authorization", "token"],
-  })
-);
+app.use(cors());
 
 // ---------------------------------------------------------------------
 // API Routes
@@ -54,7 +48,7 @@ app.post("/api/v1/send-verify", userAuth, sendVerifyController);
 // ---------------------------------------------------------------------
 // Server Initialization
 // ---------------------------------------------------------------------
-getRedisClient();
+await getRedisClient();
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, async () => {

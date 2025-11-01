@@ -32,6 +32,7 @@ export const sendVerifyController = async (req: Request, res: Response) => {
     const userId = req.userId;
     const { toAddress, lamports, signed }: BodyInputType = req.body;
 
+    // TODO: check if user has the lamports amount to send or not
     if (!userId) {
       logger.warn("Missing userId in request");
       return res.status(403).json({ message: "invalid credentials" });
