@@ -148,7 +148,7 @@ export const registerVerifyController = async (req: Request, res: Response) => {
           logger.warn({ err }, "Error during Redis cleanup after timeout:");
         }
         reject(new Error("Timeout waiting for DKG results"));
-      }, 15000);
+      }, 5000);
 
       try {
         await sub.connect();
@@ -202,7 +202,7 @@ export const registerVerifyController = async (req: Request, res: Response) => {
           if (sub.isOpen) {
             await sub.quit();
           }
-        }, 3000);
+        }, 5000);
       }
     });
 
