@@ -39,29 +39,29 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
   const [airdropLoading, setAirdropLoading] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [copied, setCopied] = useState(false);
-  const [hovering, setHovering] = useState(false);
+  // const [hovering, setHovering] = useState(false);
 
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const rotateX = useMotionTemplate`${y}deg`;
   const rotateY = useMotionTemplate`${x}deg`;
 
-  useEffect(() => {
-    async function fetchTxs() {
-      try {
-        const res = await axios.get(
-          `${import.meta.env.VITE_BE_URL}/api/v1/transactions`,
-          {
-            headers: { token: localStorage.getItem("token") },
-          }
-        );
-        setTransactions(res.data.transactions || []);
-      } catch (err) {
-        console.error("Failed to fetch transactions", err);
-      }
-    }
-    fetchTxs();
-  }, []);
+  // useEffect(() => {
+  //   async function fetchTxs() {
+  //     try {
+  //       const res = await axios.get(
+  //         `${import.meta.env.VITE_BE_URL}/api/v1/transactions`,
+  //         {
+  //           headers: { token: localStorage.getItem("token") },
+  //         }
+  //       );
+  //       setTransactions(res.data.transactions || []);
+  //     } catch (err) {
+  //       console.error("Failed to fetch transactions", err);
+  //     }
+  //   }
+  //   fetchTxs();
+  // }, []);
 
   async function handleSend() {
     try {
@@ -86,6 +86,7 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
       const authResponse = await startAuthentication(options);
       const verifyResponse = await axios.post(
         `${import.meta.env.VITE_BE_URL}/api/v1/send-verify`,
+        // 1000000000
         { toAddress, lamports: lamports * 1_000_000_000, signed: authResponse },
         {
           headers: {
@@ -243,21 +244,44 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
         <div className="w-full flex flex-col items-center mt-8">
           <p className="text-gray-400 text-sm mb-2">Your Solana Address</p>
 
-          <div className="flex items-center space-x-2 bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-gray-100 max-w-[90%] break-all select-text">
+          <div className="flex items-center bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-gray-100 max-w-[90%] break-all">
             <span className="text-sm break-all">{publicKey}</span>
             <button
               onClick={() => {
-                navigator.clipboard.writeText(publicKey);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 5000);
+                const copyText = async () => {
+                  try {
+                    if (navigator.clipboard && window.isSecureContext) {
+                      // Preferred (HTTPS or localhost)
+                      console.log("displaying public key");
+                      await navigator.clipboard.writeText(publicKey);
+                    } else {
+                      // ⚙️ Fallback for HTTP (non-secure)
+                      const textArea = document.createElement("textarea");
+                      textArea.value = publicKey;
+                      textArea.style.position = "fixed"; // Prevent scrolling
+                      textArea.style.left = "-9999px";
+                      document.body.appendChild(textArea);
+                      textArea.focus();
+                      textArea.select();
+                      document.execCommand("copy");
+                      document.body.removeChild(textArea);
+                    }
+
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 5000);
+                  } catch (err) {
+                    console.error("Copy failed:", err);
+                  }
+                };
+
+                copyText();
               }}
-              onMouseEnter={() => setHovering(true)}
-              onMouseLeave={() => setHovering(false)}
-              className={`ml-3 px-2 py-1 text-xs rounded-md transition-all duration-200 ${
+              className={`ml-3 px-3 py-1 text-xs font-medium rounded-md transition-all duration-200 ${
                 copied
                   ? "bg-green-600 hover:bg-green-700 text-white"
                   : "bg-indigo-600 hover:bg-indigo-700 text-white"
-              } ${hovering ? "cursor-pointer" : ""}`}
+              } cursor-pointer`}
+              title={copied ? "Copied!" : "Copy to clipboard"}
             >
               {copied ? "Copied!" : "Copy"}
             </button>

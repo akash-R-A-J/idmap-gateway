@@ -13,7 +13,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Register setPublicKey={setPublicKey} />} />
-          <Route path="/signin" element={<Login />} />
+          <Route path="/signin" element={<Login setPublicKey={setPublicKey} />} />
           <Route
             path="/transfer"
             element={<SendTransaction publicKey={publickKey} />}

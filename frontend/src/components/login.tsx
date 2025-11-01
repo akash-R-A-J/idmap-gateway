@@ -18,7 +18,11 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-export const Login = () => {
+export const Login = ({
+  setPublicKey,
+}: {
+  setPublicKey: React.Dispatch<React.SetStateAction<string>>;
+}) => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [rememberDevice, setRememberDevice] = useState(false);
@@ -34,6 +38,7 @@ export const Login = () => {
 
     try {
       setLoading(true);
+      console.log("email: ", email);
 
       const response = await axios.post(
         `${import.meta.env.VITE_BE_URL}/api/v1/login-options`,
@@ -42,6 +47,8 @@ export const Login = () => {
       );
 
       const { options, token, message } = response.data;
+      console.log("options: ", options);
+      console.log("token: ", token);
 
       if (!options || !token) {
         toast.warning("Login Error", {
@@ -67,7 +74,8 @@ export const Login = () => {
         }
       );
 
-      const { verified, message: verifyMsg } = verificationResp.data;
+      const { verified, message: verifyMsg, publicKey } = verificationResp.data;
+      setPublicKey(publicKey);
 
       if (verified) {
         localStorage.setItem("token", token);
