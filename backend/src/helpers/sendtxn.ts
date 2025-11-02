@@ -75,7 +75,7 @@ export const sendTxnToServer = async (
               {
                 node: data.server_id,
                 count: `${currentCount}/${TOTAL_NODES}`,
-                partialSig: data.data,
+                signature: data.data,
               },
               "Received partial signature"
             );
@@ -101,7 +101,7 @@ export const sendTxnToServer = async (
 
             signResults.delete(userId);
             await sub.unsubscribe("sign-result");
-            // await pub.disconnect();
+            await pub.disconnect();
             await sub.disconnect();
 
             return reject(new Error(data.error));
@@ -121,7 +121,7 @@ export const sendTxnToServer = async (
     logger.error({ err }, "Error during sendTxnToServer");
 
     try {
-      // await pub.disconnect();
+      await pub.disconnect();
       await sub.disconnect();
     } catch (closeErr) {
       logger.warn({ closeErr }, "Error disconnecting Redis clients");

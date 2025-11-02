@@ -18,14 +18,6 @@ const logger = pino({
  * registerVerifyController
  * --------------------------------------------------------------------
  * Handles WebAuthn registration verification + Distributed Key Generation (DKG)
- *
- * Workflow:
- *   1. Verify user's WebAuthn registration (challenge validation)
- *   2. Create user record in PostgreSQL
- *   3. Trigger DKG across distributed servers using Redis pub/sub
- *   4. Wait for all DKG participants to return consistent shared public key
- *   5. Store the resulting group public key in DB
- *   6. Issue JWT for client authentication
  * --------------------------------------------------------------------
  */
 export const registerVerifyController = async (req: Request, res: Response) => {
@@ -38,7 +30,7 @@ export const registerVerifyController = async (req: Request, res: Response) => {
   }
 
   try {
-    // --- Step 1: Validate challenge ---
+    // Step 1: Validate challenge
     const options = credentialMap.get(email);
     if (!options?.challenge) {
       logger.warn({ email }, "Challenge not found for user");
@@ -58,119 +50,60 @@ export const registerVerifyController = async (req: Request, res: Response) => {
       return res.status(403).json({ message: "invalid credentials" });
     }
 
-    // --- Step 4: Initialize Redis + start DKG ---
+    // Step 2: Initialize Redis
     const redisClient = await getRedisClient();
 
     const sessionId = `session-${randomUUID()}`;
     const dkgPayload = {
-      id: Date.now(), // node backend id
+      id: Date.now(),
       action: "startdkg",
       session: sessionId,
     };
-
-    logger.info({ sessionId }, "Publishing DKG start event");
-    await redisClient.publish("dkg-start", JSON.stringify(dkgPayload));
 
     const EXPECTED_PARTICIPANTS = parseInt(
       process.env.EXPECTED_PARTICIPANTS || "2"
     );
 
-    // --- Step 5: Collect DKG results ---
-    // const sharedPubkey = await new Promise<string>(async (resolve, reject) => {
-    //   const sub = createClient({url: process.env.REDIS_URL as string});
-    //   const received: Record<number, string> = {};
-
-    //   try {
-    //     await sub.connect();
-
-    //     await sub.subscribe("dkg-result", async (message) => {
-    //       try {
-    //         const parsed = JSON.parse(message);
-
-    //         if (
-    //           parsed.result_type === "dkg-result" &&
-    //           parsed.id === dkgPayload.id
-    //         ) {
-    //           logger.debug(
-    //             { server_id: parsed.server_id, pubkey: parsed.data },
-    //             "Received DKG result"
-    //           );
-
-    //           received[parsed.server_id] = parsed.data;
-
-    //           if (Object.keys(received).length === EXPECTED_PARTICIPANTS) {
-    //             await sub.unsubscribe("dkg-result");
-
-    //             const uniqueKeys = new Set(Object.values(received));
-    //             if (uniqueKeys.size > 1) {
-    //               logger.error("Mismatched DKG public keys across servers");
-    //               throw new Error("Mismatched DKG public keys");
-    //             }
-
-    //             const finalPubkey = Object.values(received)[0];
-    //             if (!finalPubkey) {
-    //               throw new Error("No public key received from participants");
-    //             }
-
-    //             resolve(finalPubkey);
-    //           }
-    //         }
-    //       } catch (err) {
-    //         reject(err);
-    //       }
-    //     });
-    //   } catch (err) {
-    //     logger.error({ err }, "Redis subscriber connection error");
-    //     reject(err);
-    //   } finally {
-    //     // Always clean up, even if error occurs
-    //     sub.on("end", () => logger.debug("Redis subscriber closed"));
-    //     setTimeout(async () => {
-    //       if (sub.isOpen) {
-    //         await sub.quit();
-    //       }
-    //     }, 3000); // close after short delay
-    //   }
-    // });
-
-    // --- Step 5: Collect DKG results ---
+    // Step 3: Subscribe to DKG results before publishing start event
     const sharedPubkey = await new Promise<string>(async (resolve, reject) => {
       const sub = createClient({ url: process.env.REDIS_URL as string });
       const received: Record<number, string> = {};
 
-      // ⏰ Timeout after 5 seconds
-      const timeout = setTimeout(async () => {
-        logger.error("Timeout: No DKG result received within 5 seconds");
-        try {
-          await sub.unsubscribe("dkg-result");
-          await sub.quit();
-        } catch (err) {
-          logger.warn({ err }, "Error during Redis cleanup after timeout:");
-        }
-        reject(new Error("Timeout waiting for DKG results"));
-      }, 5000);
-
       try {
         await sub.connect();
+
+        // Timeout protection
+        const timeout = setTimeout(async () => {
+          logger.error("Timeout: No DKG result received within 5 seconds");
+          try {
+            await sub.unsubscribe("dkg-result");
+            await sub.quit();
+          } catch (err) {
+            logger.warn({ err }, "Error during Redis cleanup after timeout");
+          }
+          reject(new Error("Timeout waiting for DKG results"));
+        }, 5000);
 
         await sub.subscribe("dkg-result", async (message) => {
           try {
             const parsed = JSON.parse(message);
-            logger.info({id: parsed.id, server_id: parsed.server_id, pubkey: parsed.data}, "received payload from the rust srvers");
+            logger.info(
+              {
+                id: parsed.id,
+                server_id: parsed.server_id,
+                pubkey: parsed.data,
+              },
+              "Received payload from Rust servers"
+            );
 
             if (
               parsed.result_type === "dkg-result" &&
               parsed.id === dkgPayload.id
             ) {
-              logger.debug(
-                { server_id: parsed.server_id, pubkey: parsed.data },
-                "Received DKG result"
-              );
-
               received[parsed.server_id] = parsed.data;
 
               if (Object.keys(received).length === EXPECTED_PARTICIPANTS) {
-                clearTimeout(timeout); //  stop timeout once all responses received
+                clearTimeout(timeout);
                 await sub.unsubscribe("dkg-result");
 
                 const uniqueKeys = new Set(Object.values(received));
@@ -184,47 +117,49 @@ export const registerVerifyController = async (req: Request, res: Response) => {
                   throw new Error("No public key received from participants");
                 }
 
+                await sub.quit();
                 resolve(finalPubkey);
               }
             }
           } catch (err) {
             clearTimeout(timeout);
+            try {
+              await sub.quit();
+            } catch {}
             reject(err);
           }
         });
+
+        // Step 4: Publish DKG start event AFTER subscriber is ready
+        logger.info({ sessionId }, "Publishing DKG start event");
+        await redisClient.publish("dkg-start", JSON.stringify(dkgPayload));
       } catch (err) {
-        clearTimeout(timeout);
         logger.error({ err }, "Redis subscriber connection error");
         reject(err);
       } finally {
         sub.on("end", () => logger.debug("Redis subscriber closed"));
         setTimeout(async () => {
-          if (sub.isOpen) {
-            await sub.quit();
-          }
+          if (sub.isOpen) await sub.quit();
         }, 5000);
       }
     });
 
-    logger.info(
-      { sharedPubkey },
-      "DKG complete, received final group public key"
-    );
+    logger.info({ sharedPubkey }, "DKG complete, received final group public key");
 
-    // --- Step 2: Create user record ---
+    // Step 5: Create user record
     const { rows: users } = await pool.query(
       `INSERT INTO user_schema.users (email) VALUES ($1) RETURNING id;`,
       [email]
     );
     const userId = users[0].id;
 
-    // --- Step 3: Save credential ---
+    // Step 6: Save credential
     const { credential, credentialDeviceType, credentialBackedUp } =
       registrationInfo;
     await pool.query(
       `INSERT INTO credential_schema.credentials 
-       (id, publicKey, counter, userId, webauthnUserId, deviceType, backedUp, transports)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
+        (id, publicKey, counter, userId, webauthnUserId, deviceType, backedUp, transports)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
       [
         credential.id,
         Buffer.from(credential.publicKey),
@@ -239,14 +174,14 @@ export const registerVerifyController = async (req: Request, res: Response) => {
 
     logger.info({ email }, "User and credential saved successfully");
 
-    // --- Step 6: Save key info ---
+    // Step 7: Save key info
     await pool.query(
       `INSERT INTO key_schema.keys (sessionId, userId, solanaAddress, created_at)
        VALUES ($1, $2, $3, NOW());`,
       [sessionId, userId, sharedPubkey]
     );
 
-    // --- Step 7: Generate JWT ---
+    // Step 8: Generate JWT
     const token = jwt.sign({ userId }, process.env.JWT_SECRET as string, {
       expiresIn: "1h",
     });
@@ -259,10 +194,7 @@ export const registerVerifyController = async (req: Request, res: Response) => {
       token,
     });
   } catch (error) {
-    logger.error(
-      { err: error },
-      "Error during registration verification or DKG process"
-    );
+    logger.error({ err: error }, "Error during registration verification or DKG process");
     return res.status(500).json({ message: "server error" });
   }
 };
