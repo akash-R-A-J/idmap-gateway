@@ -13,6 +13,10 @@ import logger from "../config/logger.js";
  * 3. Generating a WebAuthn challenge
  * 4. Signing a temporary JWT (for client verification flow)
  */
+
+/**
+ * Adding logger to check for latency
+ */
 export const loginOptionsController = async (req: Request, res: Response) => {
   const { e } = req.body;
 
@@ -26,7 +30,9 @@ export const loginOptionsController = async (req: Request, res: Response) => {
 
   try {
     // Fetch user from DB
+    logger.info("getting use by email");
     const user = await getUserByEmail(email);
+    logger.info("got the user");
     const userId = user?.id;
 
     if (!userId) {
@@ -35,7 +41,9 @@ export const loginOptionsController = async (req: Request, res: Response) => {
     }
 
     // Generate WebAuthn challenge
+    logger.info("generating challenge for user");
     const authOptions = await generateChallenge(userId);
+    logger.info("challenge generated");
     if (!authOptions) {
       throw new Error("Failed to generate WebAuthn challenge during login");
     }
@@ -50,7 +58,10 @@ export const loginOptionsController = async (req: Request, res: Response) => {
     // Respond with challenge and token
     res.status(200).json({ options: authOptions, token });
   } catch (error) {
-    logger.error(error instanceof Error ? error : new Error(String(error)), "Error in loginOptionsController");
+    logger.error(
+      error instanceof Error ? error : new Error(String(error)),
+      "Error in loginOptionsController"
+    );
     res.status(500).json({ message: "Server error" });
   }
 };

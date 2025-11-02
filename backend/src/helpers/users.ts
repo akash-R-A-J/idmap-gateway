@@ -41,7 +41,9 @@ export const getUserByEmail = async (email: string) => {
  */
 const getUser = async ({ query, value }: { query: string; value: string }) => {
   try {
+    logger.info("fetching user from the db");
     const { rows } = await pool.query(query, [value]);
+    logger.info("fetched user");
     return rows[0];
   } catch (error) {
     logger.error({ error, value }, "Error fetching user from database");
