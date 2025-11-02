@@ -46,7 +46,7 @@ export const Login = ({
         { headers: { "Content-Type": "application/json" } }
       );
 
-      // console.log("got the challenge: ", Date.now());
+      const rt0 = performance.now();
 
       const { options, token, message } = response.data;
       console.log("options: ", options);
@@ -58,6 +58,8 @@ export const Login = ({
         });
         return;
       }
+      const rt1 = performance.now();
+      console.log("response to webauthn took: ", (rt1 - rt0).toFixed(2), "ms");
 
       // Pass preferred user verification if "Remember device" is checked
       const t0 = performance.now();
