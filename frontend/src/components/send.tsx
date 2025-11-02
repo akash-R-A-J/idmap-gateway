@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
@@ -32,6 +32,7 @@ interface Transaction {
   status: boolean;
   signature: string;
   txid: string;
+  created_at: any; // get the data type
 }
 
 export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
@@ -47,6 +48,43 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
   const y = useMotionValue(0);
   const rotateX = useMotionTemplate`${y}deg`;
   const rotateY = useMotionTemplate`${x}deg`;
+
+  // load the transaction histroy on mount
+  useEffect(() => {
+    async function getTransactionHisttory() {
+      try {
+        const response = await axios.get(
+          `${import.meta.env.VITE_BE_URL}/api/v1/transaction-history`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              token: localStorage.getItem("token"),
+            },
+          }
+        );
+
+        console.log("transaction : ", response.data);
+        console.log("transaction history: ", response.data.transactions);
+        // GET THE DATA TYPE OF ALL THE VALUES RETURNED
+        const first = response.data.transactions[0];
+        console.log(typeof first.signature, "signature");
+        console.log(typeof first.toaddress, "toaddress");
+        console.log(typeof first.amount, "amount");
+        console.log(typeof first.txid, "txid");
+        console.log(typeof first.status, "status");
+        console.log(typeof first.created_at, "created_at");
+
+        console.log("solana address: ", response.data.publicKey);
+        console.log("type of solana address: ", typeof response.data.publicKey);
+
+        setTransactions(response.data.transactions);
+      } catch (error) {
+        console.log("error getting transaction history", error);
+      }
+    }
+
+    getTransactionHisttory();
+  }, []);
 
   // ⚙️ Send Transaction
   async function handleSend() {
@@ -98,6 +136,7 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
         status: success ? success : false,
         signature,
         txid,
+        created_at: performance.now(),
       };
 
       setTransactions((prev) => [...prev, tx]);
@@ -193,6 +232,18 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
 
   return (
     <div className="relative min-h-screen bg-[#030014] text-gray-100 overflow-hidden flex flex-col">
+      {/* Devnet Notice */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="w-full bg-gradient-to-r from-indigo-600/20 via-purple-600/20 to-blue-600/20 border-b border-indigo-500/40 text-indigo-300 text-sm text-center py-4 backdrop-blur-md shadow-[0_0_20px_rgba(79,70,229,0.3)]"
+      >
+        ⚠️ Currently running on{" "}
+        <span className="font-semibold text-indigo-400">Solana Devnet</span> —
+        transactions and balances are for testing only.
+      </motion.div>
+
       {/* Background and Blobs */}
       <svg
         className="absolute inset-0 w-full h-full opacity-20"
