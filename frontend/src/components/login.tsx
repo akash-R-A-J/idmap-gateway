@@ -38,13 +38,15 @@ export const Login = ({
 
     try {
       setLoading(true);
-      console.log("email: ", email);
+      console.log("email: ", email, Date.now());
 
       const response = await axios.post(
         `${import.meta.env.VITE_BE_URL}/api/v1/login-options`,
         { e: email },
         { headers: { "Content-Type": "application/json" } }
       );
+
+      // console.log("got the challenge: ", Date.now());
 
       const { options, token, message } = response.data;
       console.log("options: ", options);
@@ -58,10 +60,13 @@ export const Login = ({
       }
 
       // Pass preferred user verification if "Remember device" is checked
+      const t0 = performance.now();
       const asseResp = await startAuthentication({
         ...options,
         userVerification: rememberDevice ? "preferred" : "discouraged",
       });
+      const t1 = performance.now();
+      console.log("WebAuthn took:", (t1 - t0).toFixed(2), "ms");
 
       const verificationResp = await axios.post(
         `${import.meta.env.VITE_BE_URL}/api/v1/login-verify`,
