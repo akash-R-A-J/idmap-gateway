@@ -39,6 +39,7 @@ This system enables users to create Solana wallets and sign transactions using *
 
 Here are all the key resources related to **IdMap** and its components:
 
+- 🎥 **Demo Video – IdMap in Action:** [demo video](https://drive.google.com/file/d/1-GDJuX2uXrtBun4gd9xo5r3dXT6XhaDU/view?usp=sharing)
 - 🔗 **IdMap Core Repository:** [github.com/akash-R-A-J/idmap-core](https://github.com/akash-R-A-J/idmap-core)
 - 📘 **IdMap Gateway – Detailed Documentation:** [deepwiki.com/akash-R-A-J/idmap-gateway](https://deepwiki.com/akash-R-A-J/idmap-gateway)
 - 📗 **IdMap Core – Detailed Documentation:** [deepwiki.com/akash-R-A-J/idmap-core](https://deepwiki.com/akash-R-A-J/idmap-core)
