@@ -50,41 +50,41 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
   const rotateY = useMotionTemplate`${x}deg`;
 
   // load the transaction histroy on mount
-  useEffect(() => {
-    async function getTransactionHisttory() {
-      try {
-        const response = await axios.get(
-          `${import.meta.env.VITE_BE_URL}/api/v1/transaction-history`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-              token: localStorage.getItem("token"),
-            },
-          }
-        );
+  // useEffect(() => {
+  //   async function getTransactionHisttory() {
+  //     try {
+  //       const response = await axios.get(
+  //         `${import.meta.env.VITE_BE_URL}/api/v1/transaction-history`,
+  //         {
+  //           headers: {
+  //             "Content-Type": "application/json",
+  //             token: localStorage.getItem("token"),
+  //           },
+  //         }
+  //       );
 
-        console.log("transaction : ", response.data);
-        console.log("transaction history: ", response.data.transactions);
-        // GET THE DATA TYPE OF ALL THE VALUES RETURNED
-        const first = response.data.transactions[0];
-        console.log(typeof first.signature, "signature");
-        console.log(typeof first.toaddress, "toaddress");
-        console.log(typeof first.amount, "amount");
-        console.log(typeof first.txid, "txid");
-        console.log(typeof first.status, "status");
-        console.log(typeof first.created_at, "created_at");
+  //       console.log("transaction : ", response.data);
+  //       console.log("transaction history: ", response.data.transactions);
+  //       // GET THE DATA TYPE OF ALL THE VALUES RETURNED
+  //       const first = response.data.transactions[0];
+  //       console.log(typeof first.signature, "signature");
+  //       console.log(typeof first.toaddress, "toaddress");
+  //       console.log(typeof first.amount, "amount");
+  //       console.log(typeof first.txid, "txid");
+  //       console.log(typeof first.status, "status");
+  //       console.log(typeof first.created_at, "created_at");
 
-        console.log("solana address: ", response.data.publicKey);
-        console.log("type of solana address: ", typeof response.data.publicKey);
+  //       console.log("solana address: ", response.data.publicKey);
+  //       console.log("type of solana address: ", typeof response.data.publicKey);
 
-        setTransactions(response.data.transactions);
-      } catch (error) {
-        console.log("error getting transaction history", error);
-      }
-    }
+  //       setTransactions(response.data.transactions);
+  //     } catch (error) {
+  //       console.log("error getting transaction history", error);
+  //     }
+  //   }
 
-    getTransactionHisttory();
-  }, []);
+  //   getTransactionHisttory();
+  // }, []);
 
   // ⚙️ Send Transaction
   async function handleSend() {
@@ -242,6 +242,49 @@ export const SendTransaction = ({ publicKey }: { publicKey: string }) => {
         ⚠️ Currently running on{" "}
         <span className="font-semibold text-indigo-400">Solana Devnet</span> —
         transactions and balances are for testing only.
+      </motion.div>
+
+      {/* 🌐 Upcoming Feature Banner */}
+      {/* 🌐 Upcoming Feature Banner */}
+      <motion.div
+        initial={{ opacity: 0, x: 50, y: -10 }}
+        animate={{ opacity: 1, x: 0, y: 0 }}
+        transition={{ duration: 1, ease: "easeOut" }}
+        className="fixed top-20 right-4 z-50"
+      >
+        <div
+          className="relative px-4 py-2 rounded-xl shadow-lg text-sm font-medium
+             text-indigo-100 backdrop-blur-md bg-black/50"
+        >
+          <div className="flex items-center gap-2 p-2">
+            <span className="font-semibold text-white">Upcoming:</span> SNS
+            Integration 🔥
+          </div>
+
+          {/* ⚡ Animated Neon Border */}
+          <motion.div
+            className="absolute inset-0 rounded-xl border-[3px] pointer-events-none"
+            animate={{
+              borderImageSource: [
+                "linear-gradient(90deg, rgba(0,255,255,0.9), rgba(147,51,234,0.9), rgba(255,0,128,0.9))",
+                "linear-gradient(270deg, rgba(255,0,128,0.9), rgba(147,51,234,0.9), rgba(0,255,255,0.9))",
+              ],
+              boxShadow: [
+                "0 0 12px rgba(0,255,255,0.5), 0 0 20px rgba(147,51,234,0.4)",
+                "0 0 12px rgba(255,0,128,0.5), 0 0 20px rgba(147,51,234,0.4)",
+              ],
+            }}
+            transition={{
+              duration: 1.2,
+              repeat: Infinity,
+              ease: "easeInOut",
+              repeatType: "mirror",
+            }}
+            style={{
+              borderImageSlice: 1,
+            }}
+          />
+        </div>
       </motion.div>
 
       {/* Background and Blobs */}
