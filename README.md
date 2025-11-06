@@ -17,6 +17,7 @@ IdMap is a decentralized identity management protocol that bridges Web2 authenti
 [![Solana](https://img.shields.io/badge/Solana-9945FF?style=flat&logo=solana&logoColor=white)](https://solana.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-DC382D?style=flat&logo=redis&logoColor=white)](https://redis.io/)
+![WebAuthn](https://img.shields.io/badge/WebAuthn-Supported-brightgreen?style=flat)
 
 </div>
 
