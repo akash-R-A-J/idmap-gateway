@@ -86,15 +86,27 @@ export const Register = ({
       </div>
 
       <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="w-full bg-gradient-to-r from-indigo-600/20 via-purple-600/20 to-blue-600/20 border-b border-indigo-500/40 text-indigo-300 text-sm text-center py-4 backdrop-blur-md shadow-[0_0_20px_rgba(79,70,229,0.3)]"
-      >
-        <span className="font-semibold text-indigo-400">
-        Our backend credits are currently exhausted. Registration is disabled
-      until funding is restored. Thank you for your patience. </span>
-      </motion.div>
+  initial={{ opacity: 0, y: -10 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.6 }}
+  className="w-full px-4 py-4 bg-gradient-to-r from-indigo-600/20 via-purple-600/20 to-blue-600/20
+             border-b border-indigo-500/40 backdrop-blur-md shadow-[0_0_20px_rgba(79,70,229,0.3)]"
+>
+  <p className="text-indigo-300 text-sm md:text-base text-center leading-relaxed break-words">
+    <span className="font-semibold text-indigo-400">
+      Backend credits exhausted.
+    </span>{" "}
+    Registration is temporarily disabled.{" "}
+    <a
+      href="https://drive.google.com/file/d/1-GDJuX2uXrtBun4gd9xo5r3dXT6XhaDU/view"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-block text-indigo-300 underline underline-offset-4 hover:text-indigo-200 font-medium break-all"
+    >
+      Watch demo video →
+    </a>
+  </p>
+</motion.div>
 
       {/* header */}
       <motion.div
